@@ -1,112 +1,145 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
 
-entity spispy is
+entity SPISPY is
     port (
-        RESET   : in  std_logic;
-        CLK     : in  std_logic;
-        CS_N    : in  std_logic;
-        SPI_CLK : in  std_logic;
-        MOSI    : in  std_logic;
-        ADDR    : out std_logic_vector(23 downto 0);
-        COUNT   : out std_logic_vector(23 downto 0);
-        STROBE  : out std_logic
+        RESET     : in  std_logic;
+        CLK       : in  std_logic;
+        
+        SPI_CLK   : in  std_logic;
+        SPI_CS_N  : in  std_logic;
+        SPI_MOSI  : in  std_logic;
+        
+        ADDR_OUT   : out std_logic_vector(23 downto 0);
+        BYTE_COUNT : out std_logic_vector(23 downto 0);
+        STROBE     : out std_logic
     );
-end entity;
+end entity SPISPY;
 
-architecture RTL of spispy is
-    type STATES is (IDLE, READ_CMD, READ_ADDR, COUNT_DATA);
-    signal state      : STATES := IDLE;
-    signal bit_ix     : unsigned(2 downto 0) := (others => '0');
-    signal shift_reg  : std_logic_vector(7 downto 0) := (others => '0');
-    signal acount     : unsigned(1 downto 0) := (others => '0');
-    signal addr_reg   : std_logic_vector(23 downto 0) := (others => '0');
-    signal count_reg  : unsigned(23 downto 0) := (others => '0');
-    signal ready_reg  : std_logic := '0';
-    signal ready_sync : std_logic_vector(3 downto 0) := (others => '0');
+architecture RTL of SPISPY is
+    constant CMD_READ : std_logic_vector(7 downto 0) := x"03";
+    
+    type step_t is (IDLE, GET_CMD, GET_ADDR, COUNT_DATA);
+    type state_t is record
+        step        : step_t;
+        shift_reg   : std_logic_vector(23 downto 0);
+        count       : unsigned(23 downto 0);
+        bit_count   : unsigned(2 downto 0);
+        addr_byte   : unsigned(1 downto 0);
+    end record;
+
+    type spi_t is record
+        clk       : std_logic;
+        cs_n      : std_logic;
+        mosi      : std_logic;
+    end record;
+
+    constant RESET_STATE : state_t := (step => IDLE, shift_reg => (others => '0'), count => (others => '0'), bit_count => (others => '0'), addr_byte => (others => '0'));
+    constant RESET_SPI_FF : spi_t := (clk => '0', cs_n => '1', mosi => '0');
+
+    signal state : state_t := RESET_STATE;
+    signal next_state : state_t := RESET_STATE;
+    signal sync_spi_ff1 : spi_t := RESET_SPI_FF;
+    signal sync_spi_ff2 : spi_t := RESET_SPI_FF;
+    signal prev_spi : spi_t := RESET_SPI_FF;
+    signal spi : spi_t := RESET_SPI_FF;
+    signal addr : std_logic_vector(23 downto 0) := (others => '0');
+    signal addr_enable : std_logic := '0';
+    attribute ASYNC_REG : string;
+    attribute ASYNC_REG of sync_spi_ff1 : signal is "TRUE";
+    attribute ASYNC_REG of sync_spi_ff2 : signal is "TRUE";
 begin
-    ADDR   <= addr_reg;
-    COUNT  <= std_logic_vector(count_reg);
-    STROBE <= ready_sync(2) and not ready_sync(3);
-
-    -- Clock-domain crossing: synchronise ready_reg into CLK domain
-    process(CLK)
+    SYNC_SPI: process(CLK)
     begin
         if rising_edge(CLK) then
-            ready_sync <= ready_sync(2 downto 0) & ready_reg;
+            if RESET = '1' then
+                sync_spi_ff1 <= RESET_SPI_FF;
+                sync_spi_ff2 <= RESET_SPI_FF;
+                prev_spi <= RESET_SPI_FF;
+                spi <= RESET_SPI_FF;
+            else
+                sync_spi_ff1.clk <= SPI_CLK;
+                sync_spi_ff1.cs_n <= SPI_CS_N;
+                sync_spi_ff1.mosi <= SPI_MOSI;
+                sync_spi_ff2 <= sync_spi_ff1;
+                spi <= sync_spi_ff2;
+                prev_spi <= spi;
+            end if;
         end if;
     end process;
 
-    -- SPI-domain process: captures command, address, and counts data bytes
-    process(RESET, CS_N, SPI_CLK, state)
-        variable shifted : std_logic_vector(7 downto 0);
+    COMB_NEXT: process(spi, prev_spi, state)
+    variable new_shift_reg : std_logic_vector(23 downto 0);
     begin
-        if RESET = '1' then
-            shift_reg <= (others => '0');
-            bit_ix    <= (others => '0');
-            acount    <= (others => '0');
-            addr_reg  <= (others => '0');
-            count_reg <= (others => '0');
-            ready_reg <= '0';
-            state     <= IDLE;
-        elsif CS_N = '1' then
-            if state = COUNT_DATA then
-                ready_reg <= '1';
-            end if;
-            state <= IDLE;
-        elsif CS_N = '0' and state = IDLE then
-            bit_ix    <= (others => '0');
-            shift_reg <= (others => '0');
-            state     <= READ_CMD;
-        elsif rising_edge(SPI_CLK) then
-            shifted := shift_reg(6 downto 0) & MOSI;
-            shift_reg <= shifted;
-            case state is
-                when READ_CMD =>
-                    if bit_ix = 7 then
-                        if shifted = x"03" then
-                            acount <= (others => '0');
-                            state  <= READ_ADDR;
+        next_state <= state;
+        addr_enable <= '0';
+        if prev_spi.cs_n = '1' and spi.cs_n = '0' then   
+		      next_state.count <= (others => '0');
+            next_state.step <= GET_CMD;
+            next_state.bit_count <= (others => '0');
+        elsif prev_spi.cs_n = '0' and spi.cs_n = '1' then
+            next_state.step <= IDLE;
+        elsif spi.clk = '1' and prev_spi.clk = '0' then
+            new_shift_reg := state.shift_reg(22 downto 0) & spi.mosi;
+            next_state.shift_reg <= new_shift_reg;
+            case state.step is
+                when GET_CMD =>
+                    if state.bit_count = 7 then
+                       if new_shift_reg(7 downto 0) = CMD_READ then
+                            next_state.step <= GET_ADDR;
+                            next_state.addr_byte <= "00";
                         else
-                            state <= IDLE;
+                            next_state.step <= IDLE;
                         end if;
-                        shift_reg <= (others => '0');
-                        bit_ix    <= (others => '0');
-                    else
-                        bit_ix <= bit_ix + 1;
                     end if;
-                when READ_ADDR =>
-                    ready_reg <= '0';
-                    if bit_ix = 7 then
-                        case acount is
-                            when "00" =>
-                                addr_reg(23 downto 16) <= shifted;
-                            when "01" =>
-                                addr_reg(15 downto 8) <= shifted;
+                    next_state.bit_count <= state.bit_count + 1;
+                when GET_ADDR =>
+                    if state.bit_count = 7 then
+                        next_state.addr_byte <= state.addr_byte + 1;
+                        case state.addr_byte is
                             when "10" =>
-                                addr_reg(7 downto 0) <= shifted;
-                                state     <= COUNT_DATA;
-                                count_reg <= (others => '0');
+                                addr_enable <= '1';
+                                next_state.step <= COUNT_DATA;
                             when others =>
                                 null;
                         end case;
-                        acount <= acount + 1;
-                        bit_ix <= (others => '0');
-                        shift_reg <= (others => '0');
-                    else
-                        bit_ix <= bit_ix + 1;
                     end if;
+                    next_state.bit_count <= state.bit_count + 1;
                 when COUNT_DATA =>
-                    if bit_ix = 7 then
-                        count_reg <= count_reg + 1;
-                        bit_ix <= (others => '0');
-                    else
-                        bit_ix <= bit_ix + 1;
+                    if state.bit_count = 7 then
+                        next_state.count <= state.count + 1;
                     end if;
+                    next_state.bit_count <= state.bit_count + 1;
                 when others =>
                     null;
             end case;
         end if;
     end process;
-end architecture;
+
+    COMB_OUT: process(spi, prev_spi, state, addr)
+    begin
+        ADDR_OUT <= addr;
+        BYTE_COUNT <= std_logic_vector(state.count);
+		  STROBE <= '0';
+		  if state.step = COUNT_DATA and prev_spi.cs_n = '0' and spi.cs_n = '1' then
+		      STROBE <= '1';
+		  end if;
+    end process;
+
+    SYNC_REG: process(CLK)
+    begin
+        if rising_edge(CLK) then
+            if RESET = '1' then
+                state <= RESET_STATE;
+                addr <= (others => '0');
+            else
+                state <= next_state;
+                if addr_enable = '1' then
+                    addr <= next_state.shift_reg(23 downto 0);
+                end if;
+            end if;
+        end if;
+    end process;
+
+end architecture RTL;

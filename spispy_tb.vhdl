@@ -1,4 +1,4 @@
--- spispy_tb.vhdl — Testbench for spispy SPI-read-command sniffer
+-- spispy_tb.vhdl — Testbench for spispy (3-process FSM with synchronizer)
 -- Compatible with VHDL-93 and later; simulator: nvc
 
 library ieee;
@@ -11,8 +11,12 @@ end entity;
 architecture sim of spispy_tb is
 
     -- Clock periods
-    constant CLK_PERIOD     : time := 20 ns;   -- 50 MHz system clock
-    constant SPI_HALF       : time := 100 ns;  -- SPI clock half-period (5 MHz)
+    constant CLK_PERIOD : time := 20 ns;    -- 50 MHz system clock
+    constant SPI_HALF   : time := 100 ns;   -- SPI clock half-period (5 MHz)
+
+    -- Synchronizer pipeline depth: 3 sync stages + 1 register = 4 CLK cycles
+    -- Add margin for edge alignment → 6 CLK cycles is safe
+    constant SYNC_SETTLE : time := CLK_PERIOD * 6;
 
     -- DUT signals
     signal clk      : std_logic := '0';
@@ -38,7 +42,7 @@ architecture sim of spispy_tb is
         for i in 7 downto 0 loop
             mosi_o <= data(i);
             wait for SPI_HALF;
-            spi_clk_o <= '1';            -- rising edge: DUT samples
+            spi_clk_o <= '1';
             wait for SPI_HALF;
             spi_clk_o <= '0';
         end loop;
@@ -51,14 +55,14 @@ begin
     -- -----------------------------------------------------------
     uut : entity work.spispy
         port map (
-            RESET   => reset,
-            CLK     => clk,
-            CS_N    => cs_n,
-            SPI_CLK => spi_clk,
-            MOSI    => mosi,
-            ADDR    => addr,
-            COUNT   => count,
-            STROBE  => strobe
+            RESET      => reset,
+            CLK        => clk,
+            SPI_CS_N   => cs_n,
+            SPI_CLK    => spi_clk,
+            SPI_MOSI   => mosi,
+            ADDR_OUT   => addr,
+            BYTE_COUNT => count,
+            STROBE     => strobe
         );
 
     -- -----------------------------------------------------------
@@ -96,26 +100,36 @@ begin
         -- 2. Valid SPI Read (cmd 0x03, addr 0xABCDEF, 4 data bytes)
         -- =========================================================
         report "=== TEST 2: Valid SPI Read ===" severity note;
+
+        -- Assert CS and wait for synchronizer to detect the falling edge
         cs_n <= '0';
-        wait for SPI_HALF;
+        wait for SYNC_SETTLE;
 
         -- Command byte
         send_byte(spi_clk, mosi, CMD_READ);
+        wait for SYNC_SETTLE;  -- let last SPI_CLK edge propagate
 
         -- 3 address bytes
-        send_byte(spi_clk, mosi, ADDR_BYTES(23 downto 16));  -- 0xAB
-        send_byte(spi_clk, mosi, ADDR_BYTES(15 downto 8));   -- 0xCD
-        send_byte(spi_clk, mosi, ADDR_BYTES(7 downto 0));    -- 0xEF
+        send_byte(spi_clk, mosi, ADDR_BYTES(23 downto 16));
+        wait for SYNC_SETTLE;
+        send_byte(spi_clk, mosi, ADDR_BYTES(15 downto 8));
+        wait for SYNC_SETTLE;
+        send_byte(spi_clk, mosi, ADDR_BYTES(7 downto 0));
+        wait for SYNC_SETTLE;
 
-        -- 4 data bytes (contents don't matter, just counting)
+        -- 4 data bytes
         send_byte(spi_clk, mosi, x"DE");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"AD");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"BE");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"EF");
+        wait for SYNC_SETTLE;
 
-        -- De-assert CS to end transaction
+        -- De-assert CS and wait for synchronizer to detect the rising edge
         cs_n <= '1';
-        wait for CLK_PERIOD * 10;           -- let synchroniser settle
+        wait for SYNC_SETTLE;
 
         -- Check address
         if addr = x"ABCDEF" then
@@ -137,23 +151,22 @@ begin
             fail_count := fail_count + 1;
         end if;
 
-        -- Check strobe fired
-        -- (It should have pulsed by now via the synchroniser)
-
         -- =========================================================
         -- 3. Invalid command — should stay idle, no strobe
         -- =========================================================
         report "=== TEST 3: Invalid command byte ===" severity note;
         wait for SPI_HALF * 4;
+
         cs_n <= '0';
-        wait for SPI_HALF;
+        wait for SYNC_SETTLE;
 
         send_byte(spi_clk, mosi, CMD_BAD);
-        -- Send some more clocks; DUT should be IDLE
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"00");
+        wait for SYNC_SETTLE;
 
         cs_n <= '1';
-        wait for CLK_PERIOD * 10;
+        wait for SYNC_SETTLE;
 
         -- Address and count should be unchanged from previous transaction
         if addr = x"ABCDEF" then
@@ -170,20 +183,26 @@ begin
         -- =========================================================
         report "=== TEST 4: Second valid read (addr 0x001234, 2 bytes) ===" severity note;
         wait for SPI_HALF * 4;
+
         cs_n <= '0';
-        wait for SPI_HALF;
+        wait for SYNC_SETTLE;
 
         send_byte(spi_clk, mosi, CMD_READ);
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"00");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"12");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"34");
+        wait for SYNC_SETTLE;
 
-        -- 2 data bytes
         send_byte(spi_clk, mosi, x"AA");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"55");
+        wait for SYNC_SETTLE;
 
         cs_n <= '1';
-        wait for CLK_PERIOD * 10;
+        wait for SYNC_SETTLE;
 
         if addr = x"001234" then
             report "PASS: ADDR = 0x001234" severity note;
@@ -208,25 +227,26 @@ begin
         -- =========================================================
         report "=== TEST 5: Abort mid-address ===" severity note;
         wait for SPI_HALF * 4;
+
         cs_n <= '0';
-        wait for SPI_HALF;
+        wait for SYNC_SETTLE;
 
         send_byte(spi_clk, mosi, CMD_READ);
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"FF");  -- first addr byte only
-        -- abort early
-        cs_n <= '1';
-        wait for CLK_PERIOD * 10;
+        wait for SYNC_SETTLE;
 
-        -- NOTE: addr_reg is updated byte-by-byte as address bytes arrive,
-        -- so after abort the upper byte(s) may already be overwritten.
-        -- The key invariant is that STROBE did NOT fire for an incomplete
-        -- transaction, so downstream logic knows not to sample ADDR.
-        -- We just verify the design did not enter COUNT_DATA (count unchanged).
-        if unsigned(count) = to_unsigned(2, 24) then
-            report "PASS: COUNT unchanged after abort (still 2)" severity note;
+        -- Abort early
+        cs_n <= '1';
+        wait for SYNC_SETTLE;
+
+        -- BYTE_COUNT reflects the live state.count which was reset to 0
+        -- when CS fell for this (aborted) transaction — so expect 0.
+        if unsigned(count) = to_unsigned(0, 24) then
+            report "PASS: COUNT = 0 after abort (no data bytes counted)" severity note;
             pass_count := pass_count + 1;
         else
-            report "FAIL: COUNT changed after abort to " &
+            report "FAIL: COUNT expected 0 after abort, got " &
                    integer'image(to_integer(unsigned(count))) severity error;
             fail_count := fail_count + 1;
         end if;
@@ -236,16 +256,22 @@ begin
         -- =========================================================
         report "=== TEST 6: Read with 0 data bytes ===" severity note;
         wait for SPI_HALF * 4;
+
         cs_n <= '0';
-        wait for SPI_HALF;
+        wait for SYNC_SETTLE;
 
         send_byte(spi_clk, mosi, CMD_READ);
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"FF");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"00");
+        wait for SYNC_SETTLE;
         send_byte(spi_clk, mosi, x"01");
+        wait for SYNC_SETTLE;
+
         -- No data bytes, immediate de-assert
         cs_n <= '1';
-        wait for CLK_PERIOD * 10;
+        wait for SYNC_SETTLE;
 
         if addr = x"FF0001" then
             report "PASS: ADDR = 0xFF0001" severity note;
