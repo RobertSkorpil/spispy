@@ -10,15 +10,15 @@ entity SPISPY is
         SPI_CLK   : in  std_logic;
         SPI_CS_N  : in  std_logic;
         SPI_MOSI  : in  std_logic;
-        SPI_MOSI  : out std_logic;
-        MOSI_EN   : out std_logic;
+        --SPI_MISO  : out std_logic;
+        --MOSI_EN   : out std_logic;
         
         ADDR_OUT   : out std_logic_vector(23 downto 0);
         BYTE_COUNT : out std_logic_vector(23 downto 0);
-        STROBE     : out std_logic,
+        STROBE     : out std_logic --;
 
-        MATCH_DATA: in std_logic_vector(63 downto 0);
-        MATCH_VALID: in std_logic
+        --MATCH_DATA: in std_logic_vector(63 downto 0);
+        --MATCH_VALID: in std_logic
     );
 end entity SPISPY;
 
@@ -127,7 +127,6 @@ begin
         ADDR_OUT <= addr;
         BYTE_COUNT <= std_logic_vector(state.count);
         STROBE <= '0';
-        MOSI_EN <= '0';
         if state.step = COUNT_DATA and prev_spi.cs_n = '0' and spi.cs_n = '1' and state.count > 0 then
             STROBE <= '1';
         end if;

@@ -4,10 +4,12 @@ use IEEE.numeric_std.all;
 
 -- COMM_CTRL: Bridge between comm_spi Avalon-ST interface and BUFCTRL read port.
 --
--- Protocol: Master sends a command byte, then clocks out response bytes.
--- CMD_STATUS (0x00): Returns 2 bytes - READ_READY flag and READ_LOST flag
--- CMD_READ   (0x01): Returns 8 bytes - READ_ADDR(3) & READ_COUNT(3) & READ_TIME(2)
---                    Advances buffer pointer if entry was available.
+-- No command byte is used. As soon as the SPI master begins clocking,
+-- this entity streams out the next available 64-bit data word
+-- (READ_ADDR & READ_COUNT & READ_TIME) byte-by-byte, MSB first.
+-- If no entry is available (READ_READY = '0'), all xFF bytes are sent.
+-- After latching an entry, READ_NEXT is pulsed to advance the BUFCTRL
+-- read pointer.
 
 entity COMM_CTRL is
     port (
@@ -28,109 +30,118 @@ entity COMM_CTRL is
         ST_SINK_READY  : in  std_logic;
 
         -- Avalon-ST source (we receive bytes FROM the SPI core, MOSI)
+        -- We don't need MOSI data, but must accept it to keep the
+        -- streaming interface happy.
         ST_SOURCE_DATA  : in  std_logic_vector(7 downto 0);
         ST_SOURCE_VALID : in  std_logic;
-        ST_SOURCE_READY : out std_logic
+        ST_SOURCE_READY : out std_logic;
+
+        -- Active-low slave select, directly from the SPI bus
+        SPI_SS_N       : in  std_logic
     );
 end entity COMM_CTRL;
 
 architecture RTL of COMM_CTRL is
 
-    constant CMD_STATUS : std_logic_vector(7 downto 0) := x"00";
-    constant CMD_READ   : std_logic_vector(7 downto 0) := x"01";
+    constant ALL_FF : std_logic_vector(63 downto 0) := (others => '1');
 
-    type state_t is (S_IDLE, S_READ_CMD, S_SEND);
+    type state_t is (S_IDLE, S_LATCH, S_SEND);
 
-    signal state, state_next : state_t;
-    signal shift_reg, shift_reg_next : std_logic_vector(63 downto 0);
-    signal read_next_i, read_next_next : std_logic;
-    signal sink_data : std_logic_vector(7 downto 0);
-    signal sink_valid : std_logic;
+    signal state      : state_t := S_IDLE;
+    signal shift_reg  : std_logic_vector(63 downto 0) := (others => '1');
+    signal byte_cnt   : unsigned(2 downto 0) := (others => '0');
+    signal read_next_i : std_logic := '0';
+    signal ss_n_ff1   : std_logic := '1';
+    signal ss_n_ff2   : std_logic := '1';
+    signal ss_n_d     : std_logic := '1';
 
 begin
 
     READ_NEXT <= read_next_i;
-    ST_SINK_DATA <= sink_data;
-    ST_SINK_VALID <= sink_valid;
+
+    -- Always accept source data (MOSI bytes) — we ignore them
     ST_SOURCE_READY <= '1';
 
-    -- Process 1: State register (clocked)
     process(CLK)
     begin
         if rising_edge(CLK) then
             if RESET_N = '0' then
-                state       <= S_IDLE;
-                shift_reg   <= (others => '1');
+                state      <= S_IDLE;
+                shift_reg  <= ALL_FF;
+                byte_cnt   <= (others => '0');
                 read_next_i <= '0';
+                ss_n_d     <= '1';
+                ss_n_ff1   <= '1';
+                ss_n_ff2   <= '1';
+                ST_SINK_VALID <= '0';
+                ST_SINK_DATA  <= (others => '1');
             else
-                state       <= state_next;
-                shift_reg   <= shift_reg_next;
-                read_next_i <= read_next_next;
-            end if;
-        end if;
-    end process;
+                ss_n_ff1 <= SPI_SS_N;
+                ss_n_ff2 <= ss_n_ff1;
+                ss_n_d <= ss_n_ff2;
+                read_next_i <= '0';
 
-    -- Process 2: Next state logic (combinational)
-    process(state, ST_SOURCE_VALID, ST_SOURCE_DATA, ST_SINK_READY,
-            READ_READY, READ_ADDR, READ_COUNT, READ_TIME, shift_reg)
-    begin
-        state_next     <= state;
-        shift_reg_next <= shift_reg;
-        read_next_next <= '0';
-
-        case state is
-            when S_IDLE =>
-                if ST_SOURCE_VALID = '1' then
-                    state_next <= S_READ_CMD;
-                end if;
-
-            when S_READ_CMD =>
-                case ST_SOURCE_DATA is
-                    when CMD_STATUS =>
-                        shift_reg_next <= x"000000000000" &
-                                          "0000000" & READ_READY &
-                                          "0000000" & READ_LOST;
-                        state_next <= S_SEND;
-
-                    when CMD_READ =>
-                        if READ_READY = '1' then
-                            shift_reg_next <= READ_ADDR & READ_COUNT & READ_TIME;
-                            read_next_next <= '1';
-                        else
-                            shift_reg_next <= (others => '1');
+                case state is
+                    when S_IDLE =>
+                        ST_SINK_VALID <= '0';
+                        -- Detect falling edge of SS_N (start of transaction)
+                        if ss_n_d = '1' and ss_n_ff2 = '0' then
+                            state <= S_LATCH;
                         end if;
-                        state_next <= S_SEND;
+
+                    when S_LATCH =>
+                        -- Latch current BUFCTRL output and advance pointer
+                        if READ_READY = '1' then
+                            shift_reg <= READ_ADDR & READ_COUNT & READ_TIME;
+                            read_next_i <= '1';
+                        else
+                            shift_reg <= ALL_FF;
+                        end if;
+                        byte_cnt <= (others => '0');
+                        -- Present first byte immediately
+                        ST_SINK_VALID <= '1';
+                        if READ_READY = '1' then
+                            ST_SINK_DATA <= READ_ADDR(23 downto 16);
+                        else
+                            ST_SINK_DATA <= x"FF";
+                        end if;
+                        state <= S_SEND;
+
+                    when S_SEND =>
+                        if ss_n_ff2 = '1' then
+                            -- Transaction ended
+                            ST_SINK_VALID <= '0';
+                            state <= S_IDLE;
+                        elsif ST_SINK_READY = '1' then
+                            -- SPI core consumed the byte, advance
+                            if byte_cnt = 7 then
+                                -- All 8 bytes sent, keep presenting xFF
+                                -- until SS_N goes high
+                                ST_SINK_DATA <= x"FF";
+                                ST_SINK_VALID <= '1';
+                            else
+                                byte_cnt <= byte_cnt + 1;
+                                -- Next byte from shift register
+                                -- byte_cnt=0 means byte 0 was taken, present byte 1
+                                case to_integer(byte_cnt + 1) is
+                                    when 1 => ST_SINK_DATA <= shift_reg(55 downto 48);
+                                    when 2 => ST_SINK_DATA <= shift_reg(47 downto 40);
+                                    when 3 => ST_SINK_DATA <= shift_reg(39 downto 32);
+                                    when 4 => ST_SINK_DATA <= shift_reg(31 downto 24);
+                                    when 5 => ST_SINK_DATA <= shift_reg(23 downto 16);
+                                    when 6 => ST_SINK_DATA <= shift_reg(15 downto 8);
+                                    when 7 => ST_SINK_DATA <= shift_reg(7 downto 0);
+                                    when others => ST_SINK_DATA <= x"FF";
+                                end case;
+                                ST_SINK_VALID <= '1';
+                            end if;
+                        end if;
 
                     when others =>
-                        state_next <= S_IDLE;
+                        state <= S_IDLE;
                 end case;
-
-            when S_SEND =>
-                if ST_SOURCE_VALID = '0' then
-                    state_next <= S_IDLE;
-                elsif ST_SINK_READY = '1' then
-                    shift_reg_next <= shift_reg(55 downto 0) & x"FF";
-                end if;
-
-            when others =>
-                state_next <= S_IDLE;
-        end case;
-    end process;
-
-    -- Process 3: Output logic (combinational)
-    process(state, shift_reg)
-    begin
-        sink_valid <= '0';
-        sink_data  <= x"FF";
-
-        case state is
-            when S_SEND =>
-                sink_valid <= '1';
-                sink_data  <= shift_reg(63 downto 56);
-
-            when others =>
-                null;
-        end case;
+            end if;
+        end if;
     end process;
 
 end architecture RTL;
