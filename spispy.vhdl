@@ -4,16 +4,21 @@ use IEEE.numeric_std.all;
 
 entity SPISPY is
     port (
-        RESET     : in  std_logic;
+        RESET_N   : in  std_logic;
         CLK       : in  std_logic;
         
         SPI_CLK   : in  std_logic;
         SPI_CS_N  : in  std_logic;
         SPI_MOSI  : in  std_logic;
+        SPI_MOSI  : out std_logic;
+        MOSI_EN   : out std_logic;
         
         ADDR_OUT   : out std_logic_vector(23 downto 0);
         BYTE_COUNT : out std_logic_vector(23 downto 0);
-        STROBE     : out std_logic
+        STROBE     : out std_logic,
+
+        MATCH_DATA: in std_logic_vector(63 downto 0);
+        MATCH_VALID: in std_logic
     );
 end entity SPISPY;
 
@@ -53,7 +58,7 @@ begin
     SYNC_SPI: process(CLK)
     begin
         if rising_edge(CLK) then
-            if RESET = '1' then
+            if RESET_N = '0' then
                 sync_spi_ff1 <= RESET_SPI_FF;
                 sync_spi_ff2 <= RESET_SPI_FF;
                 prev_spi <= RESET_SPI_FF;
@@ -121,16 +126,17 @@ begin
     begin
         ADDR_OUT <= addr;
         BYTE_COUNT <= std_logic_vector(state.count);
-		  STROBE <= '0';
-		  if state.step = COUNT_DATA and prev_spi.cs_n = '0' and spi.cs_n = '1' then
-		      STROBE <= '1';
-		  end if;
+        STROBE <= '0';
+        MOSI_EN <= '0';
+        if state.step = COUNT_DATA and prev_spi.cs_n = '0' and spi.cs_n = '1' and state.count > 0 then
+            STROBE <= '1';
+        end if;
     end process;
 
     SYNC_REG: process(CLK)
     begin
         if rising_edge(CLK) then
-            if RESET = '1' then
+            if RESET_N = '0' then
                 state <= RESET_STATE;
                 addr <= (others => '0');
             else

@@ -76,7 +76,7 @@ BEGIN
 		outdata_reg_b => "CLOCK0",
 		power_up_uninitialized => "FALSE",
 		ram_block_type => "M9K",
-		read_during_write_mode_mixed_ports => "DONT_CARE",
+		read_during_write_mode_mixed_ports => "OLD_DATA",
 		widthad_a => 9,
 		widthad_b => 9,
 		width_a => 64,

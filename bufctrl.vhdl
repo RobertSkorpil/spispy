@@ -5,7 +5,7 @@ use IEEE.numeric_std.all;
 entity BUFCTRL is
     port 
     (
-        RESET          : in std_logic;
+        RESET_N        : in std_logic;
         CLK            : in std_logic;
 
         CAP_ADDR       : in std_logic_vector(23 downto 0);
@@ -84,10 +84,10 @@ begin
         end if;
     end process;
 
-    SYNC: process(CLK, RESET)
+    SYNC: process(CLK)
     begin
         if rising_edge(CLK) then
-            if RESET = '1' then
+            if RESET_N = '0' then
                 read_ptr <= (others => '0');
                 write_ptr <= (others => '0');
                 overflow <= '0';

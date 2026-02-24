@@ -4,13 +4,19 @@ use IEEE.numeric_std.all;
 
 entity TOP is
     port (
-        RESET         : in std_logic;
+        RESET_N       : in std_logic;
         CLK           : in std_logic;
 
         MCU_SPI_SS_N  : in std_logic;
         MCU_SPI_CLK   : in std_logic;
         MCU_SPI_MOSI  : in std_logic;
-        
+        MCU_SPI_MISO  : out std_logic;
+
+        FLASH_SPI_SS_N : out std_logic;
+        FLASH_SPI_CLK  : out std_logic;
+        FLASH_SPI_MOSI : out std_logic;
+        FLASH_SPI_MISO : in std_logic;
+
         COMM_SPI_SS_N : in std_logic;
         COMM_SPI_CLK  : in std_logic;
         COMM_SPI_MOSI : in std_logic;
@@ -31,7 +37,6 @@ end entity;
 
 architecture RTL of TOP is
     signal time_val: std_logic_vector(15 downto 0);
-    signal reset_n : std_logic;
 	 
     signal spy_addr_out   : std_logic_vector(23 downto 0);
     signal spy_byte_count : std_logic_vector(23 downto 0);
@@ -44,6 +49,8 @@ architecture RTL of TOP is
     signal mem_addr_out   : std_logic_vector(8 downto 0);
     signal mem_data_in    : std_logic_vector(63 downto 0);
     signal mem_data_out   : std_logic_vector(63 downto 0);
+    signal mosi_inject    : std_logic;
+    signal mosi_inj_data  : std_logic;
 
     -- BUFCTRL read-side data
     signal read_addr      : std_logic_vector(23 downto 0);
@@ -60,7 +67,7 @@ architecture RTL of TOP is
 begin
     clock_unit: entity work.CLOCK
     port map (
-        RESET => reset_n,
+        RESET_N => RESET_N,
         CLK => CLK,
         TIME_OUT => time_val
     );
@@ -68,7 +75,7 @@ begin
 	comm_spi_inst: entity work.COMM_SPI
 	port map (
         SYSCLK => CLK,
-        NRESET => RESET,
+        NRESET => RESET_N,
         MOSI => COMM_SPI_MOSI,
         NSS => COMM_SPI_SS_N,
         MISO => COMM_SPI_MISO,
@@ -83,19 +90,20 @@ begin
 	
 	mcu_spi: entity work.SPISPY
 	port map (
-	    RESET => reset_n,
+	    RESET_N => RESET_N,
 	    CLK => CLK,
 	    SPI_CS_N => MCU_SPI_SS_N,
 	    SPI_CLK => MCU_SPI_CLK,
 	    SPI_MOSI => MCU_SPI_MOSI,		 
 	    ADDR_OUT => spy_addr_out,
 	    BYTE_COUNT => spy_byte_count,
-	    STROBE => spy_strobe
+	    STROBE => spy_strobe,
+        MOSI_EN => mosi_inject
 	);
 	
 	bufctrl: entity work.BUFCTRL
 	port map (
-        RESET => reset_n,
+        RESET_N => RESET_N,
         CLK => CLK,
         CAP_ADDR => spy_addr_out,
         CAP_COUNT => spy_byte_count,
@@ -118,7 +126,7 @@ begin
 	comm_ctrl: entity work.COMM_CTRL
 	port map (
         CLK => CLK,
-        RESET => reset_n,
+        RESET_N => RESET_N,
         READ_ADDR  => read_addr,
         READ_COUNT => read_count,
         READ_TIME  => read_time,
@@ -130,8 +138,7 @@ begin
         ST_SINK_READY  => st_sink_ready,
         ST_SOURCE_DATA  => st_source_data,
         ST_SOURCE_VALID => st_source_valid,
-        ST_SOURCE_READY => st_source_ready,
-        SPI_SS_N => COMM_SPI_SS_N
+        ST_SOURCE_READY => st_source_ready
 	); 
 
     memory: entity work.MEMORY
@@ -144,7 +151,6 @@ begin
         q => mem_data_in
     );
     
-	reset_n <= NOT RESET;
 	LED_READY <= not read_ready;
 	LED_OVERFLOW <= not read_lost;
 	LED_MCU_ACT <= MCU_SPI_SS_N;
@@ -154,4 +160,19 @@ begin
     DBG_SPI_SS_N <= COMM_SPI_SS_N;
     DBG_SPI_CLK <= COMM_SPI_CLK;
     DBG_SPI_MISO <= COMM_SPI_MISO;
+
+    FLASH_SPI_SS_N <= MCU_SPI_SS_N;
+    FLASH_SPI_CLK <= MCU_SPI_CLK;
+    FLASH_SPI_MOSI <= MCU_SPI_MOSI;
+
+    process(FLASH_SPI_MISO, mosi_inject, mosi_inj_data)
+    begin
+        if mosi_inject = '1' then
+            MCU_SPI_MOSI <= mosi_inj_data
+        else
+            MCU_SPI_MOSI <= FLASH_SPI_MISO;
+        end if;
+    end process;
+
+    MCU_SPI_MISO <= FLASH_SPI_MISO;
 end architecture RTL;
