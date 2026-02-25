@@ -7,9 +7,9 @@ entity INJECTOR is
         RESET_N : in std_logic;
         CLK : in std_logic;
 
-        ADDR : in std_logic_vector(23 downto 0);
-        DATA: in std_logic_vector(63 downto 0);
-        PUSH: in std_logic;
+        REPLACE_ADDR : in std_logic_vector(23 downto 0);
+        REPLACE_DATA : in std_logic_vector(63 downto 0);
+        REPLACE_VALID : in std_logic;
 
         MATCH_ADDR: in std_logic(23 downto 0);
         MATCH_DATA: out std_logic(63 downto 0);
@@ -25,9 +25,9 @@ architecture RTL of INJECTOR is
 begin
     COMB_NEXT: process(ADDR, DATA, PUSH)
     begin
-        if PUSH = '1' then
-            next_inj_addr_reg <= ADDR;
-            next_inj_data_reg <= DATA;
+        if REPLACE_VALID = '1' then
+            next_inj_addr_reg <= REPLACE_ADDR;
+            next_inj_data_reg <= REPLACE_DATA;
         else
             next_inj_addr_reg <= inj_addr_reg;
             next_inj_data_reg <= inj_data_reg;

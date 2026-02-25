@@ -10,12 +10,12 @@ entity TOP is
         MCU_SPI_SS_N  : in std_logic;
         MCU_SPI_CLK   : in std_logic;
         MCU_SPI_MOSI  : in std_logic;
---        MCU_SPI_MISO  : out std_logic;
---
---        FLASH_SPI_SS_N : out std_logic;
---        FLASH_SPI_CLK  : out std_logic;
---        FLASH_SPI_MOSI : out std_logic;
---        FLASH_SPI_MISO : in std_logic;
+        MCU_SPI_MISO  : out std_logic;
+
+        FLASH_SPI_SS_N : out std_logic;
+        FLASH_SPI_CLK  : out std_logic;
+        FLASH_SPI_MOSI : out std_logic;
+        FLASH_SPI_MISO : in std_logic;
 
         COMM_SPI_SS_N : in std_logic;
         COMM_SPI_CLK  : in std_logic;
@@ -97,8 +97,8 @@ begin
 	    SPI_MOSI => MCU_SPI_MOSI,		 
 	    ADDR_OUT => spy_addr_out,
 	    BYTE_COUNT => spy_byte_count,
-	    STROBE => spy_strobe
---        MOSI_EN => mosi_inject
+	    STROBE => spy_strobe,
+        MOSI_EN => mosi_inject
 	);
 	
 	bufctrl: entity work.BUFCTRL
@@ -162,18 +162,16 @@ begin
     DBG_SPI_CLK <= COMM_SPI_CLK;
     DBG_SPI_MISO <= COMM_SPI_MISO;
 
---    FLASH_SPI_SS_N <= MCU_SPI_SS_N;
---    FLASH_SPI_CLK <= MCU_SPI_CLK;
---    FLASH_SPI_MOSI <= MCU_SPI_MOSI;
+    FLASH_SPI_SS_N <= MCU_SPI_SS_N;
+    FLASH_SPI_CLK <= MCU_SPI_CLK;
+    FLASH_SPI_MOSI <= MCU_SPI_MOSI;
 
---   process(FLASH_SPI_MISO, mosi_inject, mosi_inj_data)
---     begin
---        if mosi_inject = '1' then
---            MCU_SPI_MOSI <= mosi_inj_data
---        else
---            MCU_SPI_MOSI <= FLASH_SPI_MISO;
---        end if;
---    end process;
-
---    MCU_SPI_MISO <= FLASH_SPI_MISO;
+   process(FLASH_SPI_MISO, mosi_inject, mosi_inj_data)
+     begin
+        if mosi_inject = '1' then
+            MCU_SPI_MISO <= mosi_inj_data
+        else
+            MCU_SPI_MISO <= FLASH_SPI_MISO;
+        end if;
+    end process;
 end architecture RTL;
