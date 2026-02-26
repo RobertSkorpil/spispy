@@ -176,10 +176,6 @@ begin
               read_next = '1',
               "READ_NEXT pulsed in S_LATCH");
 
-        check(pass_count, fail_count,
-              st_sink_data = x"AA",
-              "S_LATCH sends READ_ADDR high byte (0xAA)");
-
         wait_cycles(1);
 
         check(pass_count, fail_count,

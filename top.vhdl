@@ -69,7 +69,10 @@ architecture RTL of TOP is
     signal replace_data   : std_logic_vector(63 downto 0);
     signal replace_store  : std_logic;
     signal replace_clear  : std_logic;
-	 signal replace_ix     : std_logic_vector(7 downto 0);
+	signal replace_ix     : std_logic_vector(7 downto 0);
+
+    signal match_data   : std_logic_vector(63 downto 0);
+    signal match_valid  : std_logic;
     
     signal inj_armed      : std_logic;
 begin
@@ -104,24 +107,26 @@ begin
         REPLACE_DATA => replace_data,
         REPLACE_STORE => replace_store,
         REPLACE_CLEAR => replace_clear,
-		  REPLACE_IX => replace_ix,
-        MATCH_ADDR => (others => '0'),
+		REPLACE_IX => replace_ix,
+        MATCH_ADDR => spy_addr_out,
+        MATCH_DATA => match_data,
+        MATCH_VALID => match_valid,
         ARMED => inj_armed
     );
     
 	spispy: entity work.SPISPY
 	port map (
-	    RESET_N => RESET_N,
-	    CLK => CLK,
-	    SPI_CS_N => MCU_SPI_SS_N,
-	    SPI_CLK => MCU_SPI_CLK,
-	    SPI_MOSI => MCU_SPI_MOSI,		 
-	    ADDR_OUT => spy_addr_out,
-	    BYTE_COUNT => spy_byte_count,
-	    STROBE => spy_strobe,
+	   RESET_N => RESET_N,
+	   CLK => CLK,
+	   SPI_CS_N => MCU_SPI_SS_N,
+	   SPI_CLK => MCU_SPI_CLK,
+	   SPI_MOSI => MCU_SPI_MOSI,		 
+	   ADDR_OUT => spy_addr_out,
+	   BYTE_COUNT => spy_byte_count,
+	   STROBE => spy_strobe,
        MOSI_EN => mosi_inject,
-       MATCH_DATA => (others => '0'),
-       MATCH_VALID => '0'
+       MATCH_DATA => match_data,
+       MATCH_VALID => match_valid
 	);
 	
 	bufctrl: entity work.BUFCTRL

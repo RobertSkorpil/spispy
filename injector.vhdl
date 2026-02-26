@@ -54,15 +54,15 @@ begin
         armed_out := '0';
         match_data_out := (others => '0');
         match_valid_out := '0';
---        for i in 0 to NUM_ENTRIES-1 loop
---            if entries(i).stored = '1' then
---                armed_out := '1';
---                if MATCH_ADDR = entries(i).addr then
---                    match_data_out := match_data_out or entries(i).data;
---                    match_valid_out := '1';
---                end if;
---            end if;
---        end loop;
+        for i in 0 to NUM_ENTRIES-1 loop
+            if entries(i).stored = '1' then
+                armed_out := '1';
+                if MATCH_ADDR = entries(i).addr then
+                    match_data_out := match_data_out or entries(i).data;
+                    match_valid_out := '1';
+                end if;
+            end if;
+        end loop;
         ARMED <= armed_out;
         MATCH_DATA <= match_data_out;
         MATCH_VALID <= match_valid_out;

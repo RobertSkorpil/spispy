@@ -75,6 +75,10 @@ begin
         byte_cnt_next  <= byte_cnt;
         replace_reg_next <= replace_reg;
 
+        if ST_SINK_READY = '1' then
+            shift_reg_next <= shift_reg(55 downto 0) & x"FF";
+        end if;
+
         if ss_n = '1' then
             state_next <= S_IDLE;
             byte_cnt_next <= (others => '0');
@@ -179,30 +183,11 @@ begin
                 -- Pulse READ_NEXT to advance BUFCTRL pointer
                 if READ_READY = '1' then
                     READ_NEXT <= '1';
-                    ST_SINK_DATA <= READ_ADDR(23 downto 16);
-                else
-                    ST_SINK_DATA <= x"FF";
                 end if;
-                ST_SINK_VALID <= '1';
 
             when S_SEND =>
-                if ss_n = '1' then
-                    ST_SINK_VALID <= '0';
-                else
-                    ST_SINK_VALID <= '1';
-                    ST_SINK_DATA <= shift_reg(63 downto 56);
-                    case to_integer(byte_cnt(2 downto 0)) is
-                        when 0 => ST_SINK_DATA <= shift_reg(63 downto 56);
-                        when 1 => ST_SINK_DATA <= shift_reg(55 downto 48);
-                        when 2 => ST_SINK_DATA <= shift_reg(47 downto 40);
-                        when 3 => ST_SINK_DATA <= shift_reg(39 downto 32);
-                        when 4 => ST_SINK_DATA <= shift_reg(31 downto 24);
-                        when 5 => ST_SINK_DATA <= shift_reg(23 downto 16);
-                        when 6 => ST_SINK_DATA <= shift_reg(15 downto 8);
-                        when 7 => ST_SINK_DATA <= shift_reg(7 downto 0);
-                        when others => null;
-                    end case;
-                end if;
+                ST_SINK_VALID <= '1';
+                ST_SINK_DATA <= shift_reg(63 downto 56);
 
             when others =>
                 null;
