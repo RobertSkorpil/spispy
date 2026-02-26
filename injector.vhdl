@@ -7,36 +7,45 @@ entity INJECTOR is
         RESET_N : in std_logic;
         CLK : in std_logic;
 
-        REPLACE_ADDR : in std_logic_vector(23 downto 0);
-        REPLACE_DATA : in std_logic_vector(63 downto 0);
-        REPLACE_VALID : in std_logic;
+        REPLACE_ADDR  : in std_logic_vector(23 downto 0);
+        REPLACE_DATA  : in std_logic_vector(63 downto 0);
+        REPLACE_STORE : in std_logic;
+        REPLACE_CLEAR : in std_logic;
 
-        MATCH_ADDR: in std_logic(23 downto 0);
-        MATCH_DATA: out std_logic(63 downto 0);
-        MATCH_VALID: out std_logic;
+        MATCH_ADDR    : in std_logic_vector(23 downto 0);
+        MATCH_DATA    : out std_logic_vector(63 downto 0);
+        MATCH_VALID   : out std_logic;
+        
+        ARMED         : out std_logic
     );
 end entity;
 
 architecture RTL of INJECTOR is
-    signal inj_addr_reg: unsigned(23 downto 0) := (others => '0');
-    signal next_inj_addr_reg: unsigned(23 downto 0) := (others => '0');
+    signal inj_addr_reg: std_logic_vector(23 downto 0) := (others => '0');
+    signal next_inj_addr_reg: std_logic_vector(23 downto 0) := (others => '0');
     signal inj_data_reg: std_logic_vector(63 downto 0) := (others => '0');
     signal next_inj_data_reg: std_logic_vector(63 downto 0) := (others => '0');
+    signal stored : std_logic := '0';
+    signal next_stored : std_logic := '0';
 begin
-    COMB_NEXT: process(ADDR, DATA, PUSH)
+    COMB_NEXT: process(all)
     begin
-        if REPLACE_VALID = '1' then
+        next_inj_addr_reg <= inj_addr_reg;
+        next_inj_data_reg <= inj_data_reg;
+        next_stored <= stored;
+        if REPLACE_CLEAR = '1' then
+            next_stored <= '0';
+        elsif REPLACE_STORE = '1' then
             next_inj_addr_reg <= REPLACE_ADDR;
             next_inj_data_reg <= REPLACE_DATA;
-        else
-            next_inj_addr_reg <= inj_addr_reg;
-            next_inj_data_reg <= inj_data_reg;
+            next_stored <= '1';
         end if;
     end process;
 
-    COMB_OUT: process(shift_reg)
+    COMB_OUT: process(all)
     begin
-        if MATCH_ADDR = inj_addr_reg then
+        ARMED <= stored;
+        if stored = '1' and MATCH_ADDR = inj_addr_reg then
             MATCH_DATA <= inj_data_reg;
             MATCH_VALID <= '1';
         else
@@ -54,6 +63,7 @@ begin
             else
                 inj_addr_reg <= next_inj_addr_reg;
                 inj_data_reg <= next_inj_data_reg;
+                stored <= next_stored;
             end if;
         end if;
     end process;

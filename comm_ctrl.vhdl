@@ -40,9 +40,10 @@ entity COMM_CTRL is
         SPI_SS_N       : in  std_logic;
 
         -- Replace data input
-        REPLACE_ADDR   : out  std_logic_vector(23 downto 0);
-        REPLACE_DATA   : out  std_logic_vector(63 downto 0);
-        REPLACE_VALID  : out  std_logic;
+        REPLACE_ADDR   : out std_logic_vector(23 downto 0);
+        REPLACE_DATA   : out std_logic_vector(63 downto 0);
+        REPLACE_STORE  : out std_logic;
+        REPLACE_CLEAR  : out std_logic
     );
 end entity COMM_CTRL;
 
@@ -50,7 +51,7 @@ architecture RTL of COMM_CTRL is
 
     constant ALL_FF : std_logic_vector(63 downto 0) := (others => '1');
 
-    type state_t is (S_IDLE, S_CMD, S_LATCH, S_REPLACE, S_CLEAR, S_SEND);
+    type state_t is (S_IDLE, S_CMD, S_LATCH, S_REPLACE, S_CLEAR, S_SEND, S_INVALID);
 
     -- Current state registers
     signal state      : state_t := S_IDLE;
@@ -81,13 +82,14 @@ begin
         byte_cnt_next  <= byte_cnt;
         replace_reg_next <= replace_reg;
 
-        if ss_n_prev = '1' and ss_n = '0' then
-            state_next <= S_CMD;
-        else if ss_n = '1' then
+        if ss_n = '1' then
             state_next <= S_IDLE;
-        else if ss_n = '0' then
+        else
             case state is
+                when S_INVALID =>
+                    null;
                 when S_IDLE =>
+                    state_next <= S_CMD;
                 when S_CMD =>
                     if ST_SOURCE_VALID = '1' then
                         case ST_SOURCE_DATA is
@@ -100,18 +102,20 @@ begin
                             when x"03" =>
                                 state_next <= S_CLEAR;
                             when others =>
-                                state_next <= S_IDLE;
+                                state_next <= S_INVALID;
                         end case;
                     end if;
                 when S_REPLACE =>
                     if byte_cnt = 3 + 8 then
-                        state_next <= S_IDLE;
+                        state_next <= S_INVALID;
                     elsif ST_SOURCE_VALID = '1' then
-                        replace_reg_next <= replace_reg(86 downto 0) & ST_SOURCE_DATA;
+                        replace_reg_next <= replace_reg(79 downto 0) & ST_SOURCE_DATA;
                         byte_cnt_next <= byte_cnt + 1;
                     end if;
                 when S_CLEAR =>
-                    state_next <= S_IDLE;
+                    if ST_SOURCE_VALID = '1' then
+                        state_next <= S_INVALID;
+                    end if;
                 when S_LATCH =>
                     -- Latch current BUFCTRL output
                     if READ_READY = '1' then
@@ -126,6 +130,8 @@ begin
                     if ST_SINK_READY = '1' then
                         if byte_cnt /= 7 then
                             byte_cnt_next <= byte_cnt + 1;
+                        else
+                            state_next <= S_INVALID;
                         end if;
                     end if;
 
@@ -140,33 +146,38 @@ begin
     begin
         -- Defaults
         READ_NEXT     <= '0';
+        REPLACE_STORE <= '0';
+        REPLACE_CLEAR <= '0';
+        REPLACE_ADDR <= (others => '0');
+        REPLACE_DATA <= (others => '0');
         ST_SINK_VALID <= '0';
         ST_SINK_DATA  <= x"FF";
 
+
         case state is
+            when S_INVALID =>
+                ST_SINK_DATA <= x"EE";
+                ST_SINK_VALID <= '1';
+                
             when S_IDLE =>
-                ST_SINK_VALID <= '0';
-            
+                null;
+                
             when S_CMD =>
-                ST_SINK_DATA <= x"AA";
+                ST_SINK_DATA <= x"CC";
                 ST_SINK_VALID <= '1';
 
             when S_REPLACE =>
                 if byte_cnt = 3 + 8 then
                     REPLACE_ADDR <= replace_reg(87 downto 64);
                     REPLACE_DATA <= replace_reg(63 downto 0);
-                    REPLACE_VALID <= '1';
-                    ST_SINK_DATA <= x"AC";
-                    ST_SINK_VALID <= '1';
+                    REPLACE_STORE <= '1';
                 else
-                    ST_SINK_DATA <= b"0000" & byte_cnt(3 downto 0);
+                    ST_SINK_DATA <= b"0000" & std_logic_vector(byte_cnt)(3 downto 0);
                     ST_SINK_VALID <= '1';
                 end if;
 
             when S_CLEAR =>
-                REPLACE_ADDR <= (others => '1');
-                REPLACE_DATA <= (others => '0');
-                REPLACE_VALID <= '1';
+                REPLACE_CLEAR <= '1';
                 ST_SINK_DATA <= x"AC";
                 ST_SINK_VALID <= '1';
 
@@ -181,7 +192,7 @@ begin
                 ST_SINK_VALID <= '1';
 
             when S_SEND =>
-                if ss_n_ff2 = '1' then
+                if ss_n = '1' then
                     ST_SINK_VALID <= '0';
                 else
                     ST_SINK_VALID <= '1';
@@ -194,7 +205,7 @@ begin
                         when 5 => ST_SINK_DATA <= shift_reg(23 downto 16);
                         when 6 => ST_SINK_DATA <= shift_reg(15 downto 8);
                         when 7 => ST_SINK_DATA <= shift_reg(7 downto 0);
-                        when others => ST_SINK_DATA <= x"FF";
+                        when others => null;
                     end case;
                 end if;
 
@@ -211,9 +222,9 @@ begin
                 state     <= S_IDLE;
                 shift_reg <= ALL_FF;
                 byte_cnt  <= (others => '0');
-                ss_n_d    <= '1';
+                ss_n      <= '1';
                 ss_n_ff1  <= '1';
-                ss_n_ff2  <= '1';
+                ss_n_prev  <= '1';
             else
                 -- Synchronizer chain for SS_N
                 ss_n_ff1 <= SPI_SS_N;

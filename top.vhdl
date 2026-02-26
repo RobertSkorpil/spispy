@@ -64,6 +64,13 @@ architecture RTL of TOP is
     signal st_source_data : std_logic_vector(7 downto 0);
     signal st_source_valid: std_logic;
     signal st_source_ready: std_logic;
+    
+    signal replace_addr   : std_logic_vector(23 downto 0);
+    signal replace_data   : std_logic_vector(63 downto 0);
+    signal replace_store  : std_logic;
+    signal replace_clear  : std_logic;
+    
+    signal inj_armed      : std_logic;
 begin
     clock_unit: entity work.CLOCK
     port map (
@@ -88,17 +95,34 @@ begin
         STSOURCEREADY => st_source_ready
     );
 	
-	mcu_spi: entity work.SPISPY
+    injector: entity work.INJECTOR
+    port map (
+        RESET_N => RESET_N,
+        CLK => CLK,
+        REPLACE_ADDR => replace_addr,
+        REPLACE_DATA => replace_data,
+        REPLACE_STORE => replace_store,
+        REPLACE_CLEAR => replace_clear,
+        MATCH_ADDR => (others => '0'),
+        ARMED => inj_armed
+    );
+    
+	spispy: entity work.SPISPY
 	port map (
 	    RESET_N => RESET_N,
 	    CLK => CLK,
-	    SPI_CS_N => MCU_SPI_SS_N,
-	    SPI_CLK => MCU_SPI_CLK,
-	    SPI_MOSI => MCU_SPI_MOSI,		 
+--	    SPI_CS_N => MCU_SPI_SS_N,
+--	    SPI_CLK => MCU_SPI_CLK,
+--	    SPI_MOSI => MCU_SPI_MOSI,		 
+	    SPI_CS_N => '1',
+	    SPI_CLK => '1',
+	    SPI_MOSI => '1',		 
 	    ADDR_OUT => spy_addr_out,
 	    BYTE_COUNT => spy_byte_count,
 	    STROBE => spy_strobe,
-        MOSI_EN => mosi_inject
+        MOSI_EN => mosi_inject,
+        MATCH_DATA => (others => '0'),
+        MATCH_VALID => '0'
 	);
 	
 	bufctrl: entity work.BUFCTRL
@@ -139,7 +163,11 @@ begin
         ST_SOURCE_DATA  => st_source_data,
         ST_SOURCE_VALID => st_source_valid,
         ST_SOURCE_READY => st_source_ready,
-        SPI_SS_N => COMM_SPI_SS_N
+        SPI_SS_N => COMM_SPI_SS_N,
+        REPLACE_ADDR => replace_addr,
+        REPLACE_DATA => replace_data,
+        REPLACE_STORE => replace_store,
+        REPLACE_CLEAR => replace_clear
 	); 
 
     memory: entity work.MEMORY
@@ -152,7 +180,7 @@ begin
         q => mem_data_in
     );
     
-	LED_READY <= not read_ready;
+	LED_READY <= not inj_armed;--read_ready;
 	LED_OVERFLOW <= not read_lost;
 	LED_MCU_ACT <= MCU_SPI_SS_N;
 	LED_COMM_ACT <= COMM_SPI_SS_N;
@@ -169,7 +197,7 @@ begin
    process(FLASH_SPI_MISO, mosi_inject, mosi_inj_data)
      begin
         if mosi_inject = '1' then
-            MCU_SPI_MISO <= mosi_inj_data
+            MCU_SPI_MISO <= mosi_inj_data;
         else
             MCU_SPI_MISO <= FLASH_SPI_MISO;
         end if;

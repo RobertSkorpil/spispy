@@ -15,7 +15,7 @@ entity SPISPY is
         
         ADDR_OUT   : out std_logic_vector(23 downto 0);
         BYTE_COUNT : out std_logic_vector(23 downto 0);
-        STROBE     : out std_logic --;
+        STROBE     : out std_logic;
 
         MATCH_DATA : in std_logic_vector(63 downto 0);
         MATCH_VALID: in std_logic
@@ -87,7 +87,7 @@ begin
         elsif addr_enable = '1' and MATCH_VALID = '1' then
             next_state.step <= REPLACE_DATA;
             next_state.replace_reg <= MATCH_DATA;
-            next_state.replace_count <= 0;
+            next_state.replace_count <= (others => '0');
         elsif spi.clk = '1' and prev_spi.clk = '0' then
             new_shift_reg := state.shift_reg(22 downto 0) & spi.mosi;
             next_state.shift_reg <= new_shift_reg;
@@ -143,7 +143,7 @@ begin
             STROBE <= '1';
         elsif state.step = REPLACE_DATA then
             MOSI_EN <= '1';
-            if prev_spi.clk = '0' and spi.clk = '1' state.replace_count = 0 then
+            if prev_spi.clk = '0' and spi.clk = '1' and state.replace_count = 0 then
                 BYTE_COUNT <= (others => '1');
                 STROBE <= '1';
             end if;
