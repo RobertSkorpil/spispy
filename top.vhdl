@@ -69,6 +69,7 @@ architecture RTL of TOP is
     signal replace_data   : std_logic_vector(63 downto 0);
     signal replace_store  : std_logic;
     signal replace_clear  : std_logic;
+	 signal replace_ix     : std_logic_vector(7 downto 0);
     
     signal inj_armed      : std_logic;
 begin
@@ -103,6 +104,7 @@ begin
         REPLACE_DATA => replace_data,
         REPLACE_STORE => replace_store,
         REPLACE_CLEAR => replace_clear,
+		  REPLACE_IX => replace_ix,
         MATCH_ADDR => (others => '0'),
         ARMED => inj_armed
     );
@@ -111,40 +113,37 @@ begin
 	port map (
 	    RESET_N => RESET_N,
 	    CLK => CLK,
---	    SPI_CS_N => MCU_SPI_SS_N,
---	    SPI_CLK => MCU_SPI_CLK,
---	    SPI_MOSI => MCU_SPI_MOSI,		 
-	    SPI_CS_N => '1',
-	    SPI_CLK => '1',
-	    SPI_MOSI => '1',		 
+	    SPI_CS_N => MCU_SPI_SS_N,
+	    SPI_CLK => MCU_SPI_CLK,
+	    SPI_MOSI => MCU_SPI_MOSI,		 
 	    ADDR_OUT => spy_addr_out,
 	    BYTE_COUNT => spy_byte_count,
 	    STROBE => spy_strobe,
-        MOSI_EN => mosi_inject,
-        MATCH_DATA => (others => '0'),
-        MATCH_VALID => '0'
+       MOSI_EN => mosi_inject,
+       MATCH_DATA => (others => '0'),
+       MATCH_VALID => '0'
 	);
 	
 	bufctrl: entity work.BUFCTRL
 	port map (
-        RESET_N => RESET_N,
-        CLK => CLK,
-        CAP_ADDR => spy_addr_out,
-        CAP_COUNT => spy_byte_count,
-        CAP_STROBE => spy_strobe,
-        CAP_TIME => time_val,
+       RESET_N => RESET_N,
+       CLK => CLK,
+       CAP_ADDR => spy_addr_out,
+       CAP_COUNT => spy_byte_count,
+       CAP_STROBE => spy_strobe,
+       CAP_TIME => time_val,
 
-        READ_ADDR  => read_addr,
-        READ_COUNT => read_count,
-        READ_TIME  => read_time,
-        READ_READY => read_ready,
-        READ_LOST => read_lost,
-        READ_NEXT => read_next,
-        MEM_ADDR_IN => mem_addr_in,
-        MEM_DATA_IN => mem_data_in,
-        MEM_ADDR_OUT => mem_addr_out,
-        MEM_DATA_OUT => mem_data_out,
-        MEM_WRITE => mem_write
+       READ_ADDR  => read_addr,
+       READ_COUNT => read_count,
+       READ_TIME  => read_time,
+       READ_READY => read_ready,
+       READ_LOST => read_lost,
+       READ_NEXT => read_next,
+       MEM_ADDR_IN => mem_addr_in,
+       MEM_DATA_IN => mem_data_in,
+       MEM_ADDR_OUT => mem_addr_out,
+       MEM_DATA_OUT => mem_data_out,
+       MEM_WRITE => mem_write
 	);
 
 	comm_ctrl: entity work.COMM_CTRL
@@ -167,7 +166,8 @@ begin
         REPLACE_ADDR => replace_addr,
         REPLACE_DATA => replace_data,
         REPLACE_STORE => replace_store,
-        REPLACE_CLEAR => replace_clear
+        REPLACE_CLEAR => replace_clear,
+		  REPLACE_IX => replace_ix
 	); 
 
     memory: entity work.MEMORY

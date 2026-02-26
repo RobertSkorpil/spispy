@@ -3,10 +3,14 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
 entity INJECTOR is
+    generic (
+        NUM_ENTRIES : integer := 16
+    );
     port (
         RESET_N : in std_logic;
         CLK : in std_logic;
 
+        REPLACE_IX    : in std_logic_vector(7 downto 0);
         REPLACE_ADDR  : in std_logic_vector(23 downto 0);
         REPLACE_DATA  : in std_logic_vector(63 downto 0);
         REPLACE_STORE : in std_logic;
@@ -21,49 +25,56 @@ entity INJECTOR is
 end entity;
 
 architecture RTL of INJECTOR is
-    signal inj_addr_reg: std_logic_vector(23 downto 0) := (others => '0');
-    signal next_inj_addr_reg: std_logic_vector(23 downto 0) := (others => '0');
-    signal inj_data_reg: std_logic_vector(63 downto 0) := (others => '0');
-    signal next_inj_data_reg: std_logic_vector(63 downto 0) := (others => '0');
-    signal stored : std_logic := '0';
-    signal next_stored : std_logic := '0';
+    type entry_t is record
+        addr: std_logic_vector(23 downto 0);
+        data: std_logic_vector(63 downto 0);
+        stored: std_logic;
+    end record;
+    type entry_array_t is array(0 to NUM_ENTRIES-1) of entry_t;
+    signal entries: entry_array_t := (others => (addr => (others => '0'), data => (others => '0'), stored => '0'));
+    signal next_entries: entry_array_t := (others => (addr => (others => '0'), data => (others => '0'), stored => '0'));
 begin
     COMB_NEXT: process(all)
     begin
-        next_inj_addr_reg <= inj_addr_reg;
-        next_inj_data_reg <= inj_data_reg;
-        next_stored <= stored;
-        if REPLACE_CLEAR = '1' then
-            next_stored <= '0';
-        elsif REPLACE_STORE = '1' then
-            next_inj_addr_reg <= REPLACE_ADDR;
-            next_inj_data_reg <= REPLACE_DATA;
-            next_stored <= '1';
+        next_entries <= entries;
+        if REPLACE_CLEAR = '1' then --clear all entries
+            next_entries <= (others => (addr => (others => '0'), data => (others => '0'), stored => '0'));
+        elsif REPLACE_STORE = '1' then --store new entry
+            next_entries(to_integer(unsigned(REPLACE_IX))).addr <= REPLACE_ADDR;
+            next_entries(to_integer(unsigned(REPLACE_IX))).data <= REPLACE_DATA;
+            next_entries(to_integer(unsigned(REPLACE_IX))).stored <= '1';
         end if;
     end process;
 
     COMB_OUT: process(all)
+    variable match_data_out: std_logic_vector(63 downto 0);
+    variable match_valid_out: std_logic;
+    variable armed_out: std_logic;
     begin
-        ARMED <= stored;
-        if stored = '1' and MATCH_ADDR = inj_addr_reg then
-            MATCH_DATA <= inj_data_reg;
-            MATCH_VALID <= '1';
-        else
-            MATCH_DATA <= (others => '0');
-            MATCH_VALID <= '0';
-        end if;
+        armed_out := '0';
+        match_data_out := (others => '0');
+        match_valid_out := '0';
+--        for i in 0 to NUM_ENTRIES-1 loop
+--            if entries(i).stored = '1' then
+--                armed_out := '1';
+--                if MATCH_ADDR = entries(i).addr then
+--                    match_data_out := match_data_out or entries(i).data;
+--                    match_valid_out := '1';
+--                end if;
+--            end if;
+--        end loop;
+        ARMED <= armed_out;
+        MATCH_DATA <= match_data_out;
+        MATCH_VALID <= match_valid_out;
     end process;
 
     SYNC: process(CLK)
     begin
         if rising_edge(CLK) then
             if RESET_N = '0' then
-                inj_addr_reg <= (others => '0');
-                inj_data_reg <= (others => '0');
+                entries <= (others => (addr => (others => '0'), data => (others => '0'), stored => '0'));
             else
-                inj_addr_reg <= next_inj_addr_reg;
-                inj_data_reg <= next_inj_data_reg;
-                stored <= next_stored;
+                entries <= next_entries;
             end if;
         end if;
     end process;
