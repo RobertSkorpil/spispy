@@ -1,0 +1,130 @@
+# -------------------------------------------------------------------------- #
+#
+# Copyright (C) 2025  Altera Corporation. All rights reserved.
+# Your use of Altera Corporation's design tools, logic functions 
+# and other software and tools, and any partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Altera Program License 
+# Subscription Agreement, the Altera Quartus Prime License Agreement,
+# the Altera IP License Agreement, or other applicable license
+# agreement, including, without limitation, that your use is for
+# the sole purpose of programming logic devices manufactured by
+# Altera and sold by Altera or its authorized distributors.  Please
+# refer to the Altera Software License Subscription Agreements 
+# on the Quartus Prime software download page.
+#
+# -------------------------------------------------------------------------- #
+#
+# Quartus Prime
+# Version 25.1std.0 Build 1129 10/21/2025 SC Lite Edition
+# Date created = 19:28:08  February 19, 2026
+#
+# -------------------------------------------------------------------------- #
+#
+# Notes:
+#
+# 1) The default values for assignments are stored in the file:
+#		spispy_assignment_defaults.qdf
+#    If this file doesn't exist, see file:
+#		assignment_defaults.qdf
+#
+# 2) Intel recommends that you do not modify this file. This
+#    file is updated automatically by the Quartus Prime software
+#    and any changes you make may be lost or overwritten.
+#
+# -------------------------------------------------------------------------- #
+
+
+set_global_assignment -name FAMILY "Cyclone IV E"
+set_global_assignment -name DEVICE EP4CE6E22C8
+set_global_assignment -name TOP_LEVEL_ENTITY top
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 25.1STD.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "19:28:08  FEBRUARY 19, 2026"
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
+set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.2V
+set_global_assignment -name EDA_SIMULATION_TOOL "Questa Altera FPGA (VHDL)"
+set_global_assignment -name EDA_TIME_SCALE "1 ps" -section_id eda_simulation
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT VHDL -section_id eda_simulation
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF
+set_global_assignment -name GENERATE_RBF_FILE ON
+set_global_assignment -name GENERATE_SVF_FILE ON
+set_location_assignment PIN_23 -to CLK
+set_location_assignment PIN_3 -to LED_READY
+set_location_assignment PIN_7 -to LED_OVERFLOW
+set_location_assignment PIN_59 -to GPIO_READY
+set_location_assignment PIN_60 -to COMM_SPI_CLK
+set_location_assignment PIN_64 -to COMM_SPI_MISO
+set_location_assignment PIN_65 -to COMM_SPI_MOSI
+set_location_assignment PIN_66 -to COMM_SPI_SS_N
+set_location_assignment PIN_67 -to MCU_SPI_CLK
+set_location_assignment PIN_68 -to MCU_SPI_MOSI
+set_location_assignment PIN_69 -to MCU_SPI_SS_N
+
+set_location_assignment PIN_10 -to LED_MCU_ACT
+set_location_assignment PIN_11 -to LED_COMM_ACT
+set_location_assignment PIN_126 -to DBG_SPI_CLK
+set_location_assignment PIN_127 -to DBG_SPI_MISO
+set_location_assignment PIN_128 -to DBG_SPI_SS_N
+set_location_assignment PIN_125 -to RESET_N
+set_global_assignment -name VHDL_FILE injector.vhdl -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE comm_spi_slave.vhdl
+set_global_assignment -name SDC_FILE spispy.out.sdc
+set_global_assignment -name VHDL_FILE comm_ctrl.vhdl -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE comm_spi/synthesis/comm_spi.vhd
+set_global_assignment -name QSYS_FILE comm_spi.qsys
+set_global_assignment -name VHDL_FILE top.vhdl
+set_global_assignment -name VHDL_FILE clock.vhdl
+set_global_assignment -name VHDL_FILE bufctrl.vhdl
+set_global_assignment -name VHDL_FILE spispy.vhdl
+set_global_assignment -name QIP_FILE memory.qip
+set_location_assignment PIN_77 -to FLASH_SPI_CLK
+set_location_assignment PIN_76 -to FLASH_SPI_MISO
+set_location_assignment PIN_83 -to FLASH_SPI_MOSI
+set_location_assignment PIN_74 -to FLASH_SPI_SS_N
+set_location_assignment PIN_71 -to MCU_SPI_MISO
+set_location_assignment PIN_85 -to SELECT_FLASH
+set_location_assignment PIN_70 -to SPI1_CLK
+set_location_assignment PIN_72 -to SPI1_MISO
+set_location_assignment PIN_75 -to SPI1_MOSI
+set_location_assignment PIN_73 -to SPI1_SS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_MISO
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_MOSI
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_SS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_MISO
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_MOSI
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_SS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI1_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI1_MISO
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI1_MOSI
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI1_SS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to COMM_SPI_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to COMM_SPI_MISO
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to COMM_SPI_MOSI
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to COMM_SPI_SS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to DBG_SPI_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to DBG_SPI_MISO
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to DBG_SPI_SS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to GPIO_READY
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_COMM_ACT
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_MCU_ACT
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_OVERFLOW
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_READY
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SELECT_FLASH
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
