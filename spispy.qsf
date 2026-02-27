@@ -19,7 +19,7 @@
 #
 # Quartus Prime
 # Version 25.1std.0 Build 1129 10/21/2025 SC Lite Edition
-# Date created = 19:28:08  February 19, 2026
+# Date created = 11:22:38  February 26, 2026
 #
 # -------------------------------------------------------------------------- #
 #
@@ -127,4 +127,5 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_MCU_ACT
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_OVERFLOW
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_READY
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SELECT_FLASH
+set_global_assignment -name QIP_FILE pllclock.qip
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
