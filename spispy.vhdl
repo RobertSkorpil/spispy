@@ -55,22 +55,20 @@ architecture RTL of SPISPY is
     signal addr_enable : std_logic := '0';
 begin
     SYNC_SPI: process(CLK)
-    begin
-        if rising_edge(CLK) then
-            if RESET_N = '0' then
-                sync_spi_ff1 <= RESET_SPI_FF;
-                sync_spi_ff2 <= RESET_SPI_FF;
-                prev_spi <= RESET_SPI_FF;
-                spi <= RESET_SPI_FF;
-            else
-                sync_spi_ff1.clk <= SPI_CLK;
-                sync_spi_ff1.cs_n <= SPI_CS_N;
-                sync_spi_ff1.mosi <= SPI_MOSI;
-                sync_spi_ff2 <= sync_spi_ff1;
-                spi <= sync_spi_ff2;
-                prev_spi <= spi;
-            end if;
-        end if;
+    begin        
+			if RESET_N = '0' then
+				 sync_spi_ff1 <= RESET_SPI_FF;
+				 sync_spi_ff2 <= RESET_SPI_FF;
+				 prev_spi <= RESET_SPI_FF;
+				 spi <= RESET_SPI_FF;
+			elsif rising_edge(CLK) then
+				 sync_spi_ff1.clk <= SPI_CLK;
+				 sync_spi_ff1.cs_n <= SPI_CS_N;
+				 sync_spi_ff1.mosi <= SPI_MOSI;
+				 sync_spi_ff2 <= sync_spi_ff1;
+				 spi <= sync_spi_ff2;
+				 prev_spi <= spi;
+			end if;        
     end process;
 
     COMB_NEXT: process(spi, prev_spi, state)
@@ -150,18 +148,16 @@ begin
         end if;
     end process;
 
-    SYNC_REG: process(CLK)
+    SYNC_REG: process(CLK,RESET_N)
     begin
-        if rising_edge(CLK) then
-            if RESET_N = '0' then
-                state <= RESET_STATE;
-                addr <= (others => '0');
-            else
-                state <= next_state;
-                if addr_enable = '1' then
-                    addr <= next_state.shift_reg(23 downto 0);
-                end if;
-            end if;
+		if RESET_N = '0' then
+			 state <= RESET_STATE;
+			 addr <= (others => '0');
+       elsif rising_edge(CLK) then
+			 state <= next_state;
+			 if addr_enable = '1' then
+				  addr <= next_state.shift_reg(23 downto 0);
+			 end if;            
         end if;
     end process;
 

@@ -12,6 +12,11 @@ entity TOP is
         MCU_SPI_MOSI  : in std_logic;
         MCU_SPI_MISO  : out std_logic;
 
+        SPI1_SS_N : in std_logic;
+        SPI1_CLK  : in std_logic;
+        SPI1_MOSI : in std_logic;
+        SPI1_MISO : out std_logic;
+
         FLASH_SPI_SS_N : out std_logic;
         FLASH_SPI_CLK  : out std_logic;
         FLASH_SPI_MOSI : out std_logic;
@@ -21,6 +26,8 @@ entity TOP is
         COMM_SPI_CLK  : in std_logic;
         COMM_SPI_MOSI : in std_logic;
         COMM_SPI_MISO : inout std_logic;
+
+        SELECT_FLASH : in std_logic;
 
         LED_READY     : out std_logic;
         LED_OVERFLOW  : out std_logic;
@@ -36,6 +43,8 @@ entity TOP is
 end entity;
 
 architecture RTL of TOP is
+	 signal clk2 : std_logic;
+
     signal time_val: std_logic_vector(15 downto 0);
 	 
     signal spy_addr_out   : std_logic_vector(23 downto 0);
@@ -49,8 +58,8 @@ architecture RTL of TOP is
     signal mem_addr_out   : std_logic_vector(8 downto 0);
     signal mem_data_in    : std_logic_vector(63 downto 0);
     signal mem_data_out   : std_logic_vector(63 downto 0);
-    signal mosi_inject    : std_logic;
-    signal mosi_inj_data  : std_logic;
+    signal miso_inject    : std_logic;
+    signal miso_inj_data  : std_logic;
 
     -- BUFCTRL read-side data
     signal read_addr      : std_logic_vector(23 downto 0);
@@ -75,6 +84,12 @@ architecture RTL of TOP is
     signal match_valid  : std_logic;
     
     signal inj_armed      : std_logic;
+
+    signal flash_master_ss_n : std_logic;
+    signal flash_master_clk  : std_logic;
+    signal flash_master_mosi : std_logic;
+    signal flash_master_miso : std_logic;
+    signal flash_miso_retimed : std_logic;
 begin
     clock_unit: entity work.CLOCK
     port map (
@@ -118,15 +133,16 @@ begin
 	port map (
 	   RESET_N => RESET_N,
 	   CLK => CLK,
-	   SPI_CS_N => MCU_SPI_SS_N,
-	   SPI_CLK => MCU_SPI_CLK,
-	   SPI_MOSI => MCU_SPI_MOSI,		 
+	   SPI_CS_N => flash_master_ss_n,
+	   SPI_CLK => flash_master_clk,
+	   SPI_MOSI => flash_master_mosi,		 
+		SPI_MISO => miso_inj_data,
 	   ADDR_OUT => spy_addr_out,
 	   BYTE_COUNT => spy_byte_count,
 	   STROBE => spy_strobe,
-       MOSI_EN => mosi_inject,
-       MATCH_DATA => match_data,
-       MATCH_VALID => match_valid
+      MOSI_EN => miso_inject,
+      MATCH_DATA => match_data,
+      MATCH_VALID => match_valid
 	);
 	
 	bufctrl: entity work.BUFCTRL
@@ -172,7 +188,7 @@ begin
         REPLACE_DATA => replace_data,
         REPLACE_STORE => replace_store,
         REPLACE_CLEAR => replace_clear,
-		  REPLACE_IX => replace_ix
+		REPLACE_IX => replace_ix
 	); 
 
     memory: entity work.MEMORY
@@ -184,6 +200,28 @@ begin
         wren => mem_write,
         q => mem_data_in
     );
+
+    retimer: entity work.SPI_RETIMER_DELAY
+    port map (
+        FAST_CLK => CLK2,
+        RST_N => RESET_N,
+        SCK_UP => flash_master_clk,
+        CSN_UP => flash_master_ss_n,
+        MOSI_UP => flash_master_mosi,
+        MISO_UP => flash_miso_retimed,
+
+        SCK_DN => FLASH_SPI_CLK,
+        CSN_DN => FLASH_SPI_SS_N,
+        MOSI_DN => FLASH_SPI_MOSI,
+        MISO_DN => flash_master_miso
+    );
+	
+	clock2: entity work.PLLCLOCK
+	port map(
+		areset => '0',
+		inclk0 => CLK,
+		c0 => CLK2
+	);
     
 	LED_READY <= not inj_armed;--read_ready;
 	LED_OVERFLOW <= not read_lost;
@@ -195,16 +233,29 @@ begin
     DBG_SPI_CLK <= COMM_SPI_CLK;
     DBG_SPI_MISO <= COMM_SPI_MISO;
 
-    FLASH_SPI_SS_N <= MCU_SPI_SS_N;
-    FLASH_SPI_CLK <= MCU_SPI_CLK;
-    FLASH_SPI_MOSI <= MCU_SPI_MOSI;
-
-   process(FLASH_SPI_MISO, mosi_inject, mosi_inj_data)
-     begin
-        if mosi_inject = '1' then
-            MCU_SPI_MISO <= mosi_inj_data;
+    process(SELECT_FLASH)
+    begin
+        if SELECT_FLASH = '0' then
+            flash_master_ss_n <= MCU_SPI_SS_N;
+            flash_master_clk <= MCU_SPI_CLK;
+            flash_master_mosi <= MCU_SPI_MOSI;
+            MCU_SPI_MISO <= '0';
+            SPI1_MISO <= flash_miso_retimed;
         else
-            MCU_SPI_MISO <= FLASH_SPI_MISO;
+            flash_master_ss_n <= SPI1_SS_N;
+            flash_master_clk <= SPI1_CLK;
+            flash_master_mosi <= SPI1_MOSI;
+            MCU_SPI_MISO <= flash_miso_retimed;
+            SPI1_MISO <= '0';
+        end if;
+    end process;
+
+   process(flash_miso_retimed, miso_inject, miso_inj_data)
+     begin
+        if miso_inject = '1' then
+            flash_master_miso <= miso_inj_data;
+        else
+            flash_master_miso <= FLASH_SPI_MISO;
         end if;
     end process;
 end architecture RTL;

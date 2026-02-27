@@ -16,22 +16,23 @@ architecture RTL of CLOCK is
     signal ms_count : unsigned(15 downto 0);
     signal next_ms_count : unsigned(15 downto 0);
 begin
-    COMB_OUT: process(ms_count)
+    COMB_OUT: process(all)
     begin
         TIME_OUT <= std_logic_vector(ms_count);
     end process;
 
-    COMB_NEXT: process(clk_time)
+    COMB_NEXT: process(all)
 	     constant MS_PERIOD : unsigned(15 downto 0) := to_unsigned(50000, 16);
     begin
         next_clk_time <= clk_time + 1;
+		  next_ms_count <= ms_count;
         if clk_time = MS_PERIOD then
             next_ms_count <= ms_count + 1;
             next_clk_time <= (others => '0');
         end if;
     end process;
 
-    SYNC: process(CLK)
+    SYNC: process(all)
     begin
         if rising_edge(CLK) then
             if RESET_N = '0' then
