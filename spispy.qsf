@@ -81,17 +81,6 @@ set_location_assignment PIN_126 -to DBG_SPI_CLK
 set_location_assignment PIN_127 -to DBG_SPI_MISO
 set_location_assignment PIN_128 -to DBG_SPI_SS_N
 set_location_assignment PIN_125 -to RESET_N
-set_global_assignment -name VHDL_FILE injector.vhdl -hdl_version VHDL_2008
-set_global_assignment -name VHDL_FILE comm_spi_slave.vhdl
-set_global_assignment -name SDC_FILE spispy.out.sdc
-set_global_assignment -name VHDL_FILE comm_ctrl.vhdl -hdl_version VHDL_2008
-set_global_assignment -name VHDL_FILE comm_spi/synthesis/comm_spi.vhd
-set_global_assignment -name QSYS_FILE comm_spi.qsys
-set_global_assignment -name VHDL_FILE top.vhdl
-set_global_assignment -name VHDL_FILE clock.vhdl
-set_global_assignment -name VHDL_FILE bufctrl.vhdl
-set_global_assignment -name VHDL_FILE spispy.vhdl
-set_global_assignment -name QIP_FILE memory.qip
 set_location_assignment PIN_77 -to FLASH_SPI_CLK
 set_location_assignment PIN_76 -to FLASH_SPI_MISO
 set_location_assignment PIN_83 -to FLASH_SPI_MOSI
@@ -102,10 +91,10 @@ set_location_assignment PIN_70 -to SPI1_CLK
 set_location_assignment PIN_72 -to SPI1_MISO
 set_location_assignment PIN_75 -to SPI1_MOSI
 set_location_assignment PIN_73 -to SPI1_SS_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_CLK
+set_instance_assignment -name IO_STANDARD "2.5 V" -to FLASH_SPI_CLK
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_MISO
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_MOSI
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to FLASH_SPI_SS_N
+set_instance_assignment -name IO_STANDARD "2.5 V" -to FLASH_SPI_MOSI
+set_instance_assignment -name IO_STANDARD "2.5 V" -to FLASH_SPI_SS_N
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_CLK
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_MISO
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to MCU_SPI_MOSI
@@ -127,5 +116,24 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_MCU_ACT
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_OVERFLOW
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to LED_READY
 set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SELECT_FLASH
+
+set_global_assignment -name VHDL_FILE retimer.vhdl
+set_global_assignment -name VHDL_FILE injector.vhdl -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE comm_spi_slave.vhdl
+set_global_assignment -name SDC_FILE spispy.out.sdc
+set_global_assignment -name VHDL_FILE comm_ctrl.vhdl -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE comm_spi/synthesis/comm_spi.vhd
+set_global_assignment -name QSYS_FILE comm_spi.qsys
+set_global_assignment -name VHDL_FILE top.vhdl -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE clock.vhdl -hdl_version VHDL_2008
+set_global_assignment -name VHDL_FILE bufctrl.vhdl
+set_global_assignment -name VHDL_FILE spispy.vhdl
+set_global_assignment -name QIP_FILE memory.qip
 set_global_assignment -name QIP_FILE pllclock.qip
+set_instance_assignment -name SLEW_RATE 2 -to FLASH_SPI_CLK
+set_instance_assignment -name SLEW_RATE 0 -to FLASH_SPI_MOSI
+set_instance_assignment -name SLEW_RATE 0 -to FLASH_SPI_SS_N
+set_instance_assignment -name CURRENT_STRENGTH_NEW 16MA -to FLASH_SPI_CLK
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to FLASH_SPI_MOSI
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to FLASH_SPI_SS_N
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

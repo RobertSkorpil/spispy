@@ -18,7 +18,8 @@ entity BUFCTRL is
         READ_TIME      : out std_logic_vector(15 downto 0);
         READ_READY     : out std_logic;
         READ_LOST      : out std_logic;
-        READ_NEXT      : in std_logic;
+        READ_NEXT      : in std_logic;        
+        READ_CLEAR      : in std_logic;
 
         MEM_ADDR_IN    : out std_logic_vector(8 downto 0);
         MEM_DATA_IN    : in std_logic_vector(63 downto 0);
@@ -61,7 +62,10 @@ begin
     begin
         new_read_ptr := read_ptr + 1;
         next_read_ptr <= read_ptr;
-        if READ_NEXT = '1' and read_ptr /= write_ptr then
+        if READ_CLEAR = '1' then
+            next_read_ptr <= write_ptr;
+            clear_overflow <= '1';
+        elsif READ_NEXT = '1' and read_ptr /= write_ptr then
             clear_overflow <= '1';
             next_read_ptr <= new_read_ptr;
         else

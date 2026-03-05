@@ -1,0 +1,101 @@
+# .gitignore for FPGA / Quartus / VHDL projects
+# Consolidated ignores for simulation, synthesis, IDEs, and OS temp files.
+
+## Simulation work libraries and simulator outputs
+work/
+*.cf
+_nvc/
+
+## GHDL / other simulator outputs
+*.o
+e~*
+*.ghw
+
+## Waveform dumps
+*.vcd
+*.fst
+*.lxt
+
+## Vivado / Xilinx generated files
+*.xpr
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.gen/
+*.srcs/
+.Xil/
+vivado*.log
+vivado*.jou
+
+## Quartus / Intel generated outputs and intermediate DBs
+db/
+incremental_db/
+output_files/
+simulation/
+greybox_tmp/
+
+## Common Quartus generated files (bitstreams, reports, project files)
+*.rpt
+*.qip
+*.qdb
+*.qws
+*.sof
+*.pof
+*.jdi
+*.pin
+*.summary
+*.smsg
+*.done
+*.qar
+
+## Lattice / other vendor outputs
+*.bit
+*.svf
+*.config
+
+## Yosys / nextpnr and other flow artifacts
+*.json
+*.asc
+*.bin
+
+## Build artifacts
+build/
+out/
+
+## Common tooling and temporary files
+*.tmp
+*.cache
+*.bak
+*.old
+*.log
+
+## Python / general
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+## Editor / IDE
+.vscode/
+*.swp
+*.swo
+*~
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## Optional: Project config files
+# The following are commonly kept in source control (project settings).
+# Uncomment them if you prefer NOT to track these files in git.
+# *.qpf
+# *.qsf
+# *.qip
+
+# End of file

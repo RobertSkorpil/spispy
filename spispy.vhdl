@@ -33,7 +33,7 @@ architecture RTL of SPISPY is
         bit_count   : unsigned(2 downto 0);
         addr_byte   : unsigned(1 downto 0);
         replace_reg : std_logic_vector(63 downto 0);
-        replace_count : unsigned(5 downto 0);
+        replace_count : unsigned(6 downto 0);
     end record;
 
     type spi_t is record
@@ -51,8 +51,6 @@ architecture RTL of SPISPY is
     signal sync_spi_ff2 : spi_t := RESET_SPI_FF;
     signal prev_spi : spi_t := RESET_SPI_FF;
     signal spi : spi_t := RESET_SPI_FF;
-    signal addr : std_logic_vector(23 downto 0) := (others => '0');
-    signal addr_enable : std_logic := '0';
 begin
     SYNC_SPI: process(CLK)
     begin        
@@ -75,20 +73,23 @@ begin
     variable new_shift_reg : std_logic_vector(23 downto 0);
     begin
         next_state <= state;
-        addr_enable <= '0';
         if prev_spi.cs_n = '1' and spi.cs_n = '0' then   
-		      next_state.count <= (others => '0');
+		    next_state.count <= (others => '0');
             next_state.step <= GET_CMD;
             next_state.bit_count <= (others => '0');
         elsif prev_spi.cs_n = '0' and spi.cs_n = '1' then
             next_state.step <= IDLE;
-        elsif addr_enable = '1' and MATCH_VALID = '1' then
+        elsif state.step = COUNT_DATA and MATCH_VALID = '1' then
             next_state.step <= REPLACE_DATA;
             next_state.replace_reg <= MATCH_DATA;
             next_state.replace_count <= (others => '0');
+        elsif state.step = REPLACE_DATA and state.replace_count = 64 then
+            next_state.step <= IDLE;
         elsif spi.clk = '1' and prev_spi.clk = '0' then
             new_shift_reg := state.shift_reg(22 downto 0) & spi.mosi;
-            next_state.shift_reg <= new_shift_reg;
+            if state.step /= COUNT_DATA then
+                next_state.shift_reg <= new_shift_reg;
+            end if;
             case state.step is
                 when GET_CMD =>
                     if state.bit_count = 7 then
@@ -105,7 +106,6 @@ begin
                         next_state.addr_byte <= state.addr_byte + 1;
                         case state.addr_byte is
                             when "10" =>
-                                addr_enable <= '1';
                                 next_state.step <= COUNT_DATA;
                             when others =>
                                 null;
@@ -118,21 +118,17 @@ begin
                     end if;
                     next_state.bit_count <= state.bit_count + 1;
                 when REPLACE_DATA =>
-                    if state.replace_count + 1 = 64 then
-                        next_state.step <= IDLE;
-                    else
-                        next_state.replace_count <= state.replace_count + 1;
-                        next_state.replace_reg <= state.replace_reg(63 downto 1) & '0';
-                    end if;
+                    next_state.replace_count <= state.replace_count + 1;
+                    next_state.replace_reg <= state.replace_reg(62 downto 0) & '0';
                 when others =>
                     null;
             end case;
         end if;
     end process;
 
-    COMB_OUT: process(spi, prev_spi, state, addr)
+    COMB_OUT: process(spi, prev_spi, state)
     begin
-        ADDR_OUT <= addr;
+        ADDR_OUT <= state.shift_reg(23 downto 0);
         BYTE_COUNT <= std_logic_vector(state.count);
         STROBE <= '0';
         MOSI_EN <= '0';
@@ -152,12 +148,8 @@ begin
     begin
 		if RESET_N = '0' then
 			 state <= RESET_STATE;
-			 addr <= (others => '0');
        elsif rising_edge(CLK) then
 			 state <= next_state;
-			 if addr_enable = '1' then
-				  addr <= next_state.shift_reg(23 downto 0);
-			 end if;            
         end if;
     end process;
 

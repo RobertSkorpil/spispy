@@ -15,6 +15,7 @@ entity COMM_CTRL is
         READ_READY     : in  std_logic;
         READ_LOST      : in  std_logic;
         READ_NEXT      : out std_logic;
+        READ_CLEAR     : out std_logic;
 
         -- Avalon-ST sink (we send bytes TO the SPI core for MISO)
         ST_SINK_DATA   : out std_logic_vector(7 downto 0);
@@ -44,7 +45,7 @@ architecture RTL of COMM_CTRL is
 
     constant ALL_FF : std_logic_vector(63 downto 0) := (others => '1');
 
-    type state_t is (S_IDLE, S_CMD, S_LATCH, S_REPLACE, S_CLEAR, S_SEND, S_INVALID);
+    type state_t is (S_IDLE, S_CMD, S_LATCH, S_REPLACE, S_CLEAR, S_CLEAR_BUF, S_SEND, S_INVALID);
 
     -- Current state registers
     signal state      : state_t := S_IDLE;
@@ -91,6 +92,8 @@ begin
                 when S_CMD =>
                     if ST_SOURCE_VALID = '1' then
                         case ST_SOURCE_DATA(1 downto 0) is
+                            when b"00" =>
+                                state_next <= S_CLEAR_BUF;
                             when b"01" =>
                                 state_next <= S_LATCH;
                             when b"10" =>
@@ -109,6 +112,10 @@ begin
                         byte_cnt_next <= byte_cnt + 1;
                     end if;
                 when S_CLEAR =>
+                    if ST_SOURCE_VALID = '1' then
+                        state_next <= S_INVALID;
+                    end if;                    
+                when S_CLEAR_BUF =>
                     if ST_SOURCE_VALID = '1' then
                         state_next <= S_INVALID;
                     end if;
@@ -142,6 +149,7 @@ begin
     begin
         -- Defaults
         READ_NEXT     <= '0';
+        READ_CLEAR    <= '0';
         REPLACE_STORE <= '0';
         REPLACE_CLEAR <= '0';
         REPLACE_IX <= (others => '1');
@@ -176,7 +184,12 @@ begin
 
             when S_CLEAR =>
                 REPLACE_CLEAR <= '1';
-                ST_SINK_DATA <= x"AC";
+                ST_SINK_DATA <= x"AC";               
+                ST_SINK_VALID <= '1';
+
+            when S_CLEAR_BUF =>
+                READ_CLEAR <= '1';
+                ST_SINK_DATA <= x"AB";
                 ST_SINK_VALID <= '1';
 
             when S_LATCH =>

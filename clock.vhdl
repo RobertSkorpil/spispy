@@ -25,7 +25,7 @@ begin
 	     constant MS_PERIOD : unsigned(15 downto 0) := to_unsigned(50000, 16);
     begin
         next_clk_time <= clk_time + 1;
-		  next_ms_count <= ms_count;
+	    next_ms_count <= ms_count;
         if clk_time = MS_PERIOD then
             next_ms_count <= ms_count + 1;
             next_clk_time <= (others => '0');

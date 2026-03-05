@@ -65,6 +65,7 @@ architecture RTL of TOP is
     signal read_addr      : std_logic_vector(23 downto 0);
     signal read_count     : std_logic_vector(23 downto 0);
     signal read_time      : std_logic_vector(15 downto 0);
+    signal read_clear     : std_logic;
 
     -- Avalon-ST between comm_spi and spi_resp
     signal st_sink_data   : std_logic_vector(7 downto 0);
@@ -131,15 +132,15 @@ begin
     
 	spispy: entity work.SPISPY
 	port map (
-	   RESET_N => RESET_N,
-	   CLK => CLK,
-	   SPI_CS_N => flash_master_ss_n,
-	   SPI_CLK => flash_master_clk,
-	   SPI_MOSI => flash_master_mosi,		 
-		SPI_MISO => miso_inj_data,
-	   ADDR_OUT => spy_addr_out,
-	   BYTE_COUNT => spy_byte_count,
-	   STROBE => spy_strobe,
+	  RESET_N => RESET_N,
+	  CLK => CLK,
+	  SPI_CS_N => flash_master_ss_n,
+	  SPI_CLK => flash_master_clk,
+	  SPI_MOSI => flash_master_mosi,		 
+	  SPI_MISO => miso_inj_data,
+	  ADDR_OUT => spy_addr_out,
+	  BYTE_COUNT => spy_byte_count,
+	  STROBE => spy_strobe,
       MOSI_EN => miso_inject,
       MATCH_DATA => match_data,
       MATCH_VALID => match_valid
@@ -160,6 +161,7 @@ begin
        READ_READY => read_ready,
        READ_LOST => read_lost,
        READ_NEXT => read_next,
+       READ_CLEAR => read_clear,
        MEM_ADDR_IN => mem_addr_in,
        MEM_DATA_IN => mem_data_in,
        MEM_ADDR_OUT => mem_addr_out,
@@ -177,6 +179,7 @@ begin
         READ_READY => read_ready,
         READ_LOST  => read_lost,
         READ_NEXT  => read_next,
+        READ_CLEAR => read_clear,
         ST_SINK_DATA   => st_sink_data,
         ST_SINK_VALID  => st_sink_valid,
         ST_SINK_READY  => st_sink_ready,
@@ -214,6 +217,7 @@ begin
         CSN_DN => FLASH_SPI_SS_N,
         MOSI_DN => FLASH_SPI_MOSI,
         MISO_DN => flash_master_miso
+      --  MISO_DN => FLASH_SPI_MISO
     );
 	
 	clock2: entity work.PLLCLOCK
@@ -233,24 +237,24 @@ begin
     DBG_SPI_CLK <= COMM_SPI_CLK;
     DBG_SPI_MISO <= COMM_SPI_MISO;
 
-    process(SELECT_FLASH)
+    process(all)
     begin
         if SELECT_FLASH = '0' then
             flash_master_ss_n <= MCU_SPI_SS_N;
             flash_master_clk <= MCU_SPI_CLK;
             flash_master_mosi <= MCU_SPI_MOSI;
-            MCU_SPI_MISO <= '0';
-            SPI1_MISO <= flash_miso_retimed;
+            MCU_SPI_MISO <= flash_miso_retimed;
+            SPI1_MISO <= '0';
         else
             flash_master_ss_n <= SPI1_SS_N;
             flash_master_clk <= SPI1_CLK;
             flash_master_mosi <= SPI1_MOSI;
-            MCU_SPI_MISO <= flash_miso_retimed;
-            SPI1_MISO <= '0';
+            SPI1_MISO <= flash_miso_retimed;
+            MCU_SPI_MISO <= '0';
         end if;
     end process;
 
-   process(flash_miso_retimed, miso_inject, miso_inj_data)
+   process(all)
      begin
         if miso_inject = '1' then
             flash_master_miso <= miso_inj_data;

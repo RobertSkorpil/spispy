@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simPackage>
+ <file
+   path="simulation/submodules/spiphyslave.v"
+   type="VERILOG"
+   library="spislave_0" />
+ <file path="simulation/comm_spi.vhd" type="VHDL" />
+ <topLevel name="comm_spi" />
+ <deviceFamily name="cycloneive" />
+</simPackage>

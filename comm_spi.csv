@@ -1,0 +1,18 @@
+# system info comm_spi on 2026.02.22.23:40:15
+system_info:
+name,value
+DEVICE,EP4CE6E22C8
+DEVICE_FAMILY,Cyclone IV E
+GENERATION_ID,1771800013
+#
+#
+# Files generated for comm_spi on 2026.02.22.23:40:15
+files:
+filepath,kind,attributes,module,is_top
+simulation/comm_spi.vhd,VHDL,,comm_spi,true
+simulation/submodules/spiphyslave.v,VERILOG,,SPIPhy,false
+#
+# Map from instance-path to kind of module
+instances:
+instancePath,module
+comm_spi.spislave_0,SPIPhy
