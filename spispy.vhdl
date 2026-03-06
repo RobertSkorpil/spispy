@@ -17,7 +17,7 @@ entity SPISPY is
         BYTE_COUNT : out std_logic_vector(23 downto 0);
         STROBE     : out std_logic;
 
-        MATCH_DATA : in std_logic_vector(63 downto 0);
+        MATCH_DATA : in std_logic_vector(7 downto 0);
         MATCH_VALID: in std_logic
     );
 end entity SPISPY;
@@ -29,11 +29,11 @@ architecture RTL of SPISPY is
     type state_t is record
         step        : step_t;
         shift_reg   : std_logic_vector(23 downto 0);
+        addr_reg    : std_logic_vector(23 downto 0);
         count       : unsigned(23 downto 0);
         bit_count   : unsigned(2 downto 0);
         addr_byte   : unsigned(1 downto 0);
-        replace_reg : std_logic_vector(63 downto 0);
-        replace_count : unsigned(6 downto 0);
+        replace_reg : std_logic_vector(7 downto 0);
     end record;
 
     type spi_t is record
@@ -42,7 +42,7 @@ architecture RTL of SPISPY is
         mosi      : std_logic;
     end record;
 
-    constant RESET_STATE : state_t := (step => IDLE, shift_reg => (others => '0'), count => (others => '0'), bit_count => (others => '0'), addr_byte => (others => '0'), replace_reg => (others => '0'), replace_count => (others => '0'));
+    constant RESET_STATE : state_t := (step => IDLE, shift_reg => (others => '0'), addr_reg => (others => '0'), count => (others => '0'), bit_count => (others => '0'), addr_byte => (others => '0'), replace_reg => (others => '0'));
     constant RESET_SPI_FF : spi_t := (clk => '0', cs_n => '1', mosi => '0');
 
     signal state : state_t := RESET_STATE;
@@ -79,12 +79,13 @@ begin
             next_state.bit_count <= (others => '0');
         elsif prev_spi.cs_n = '0' and spi.cs_n = '1' then
             next_state.step <= IDLE;
-        elsif state.step = COUNT_DATA and MATCH_VALID = '1' then
-            next_state.step <= REPLACE_DATA;
-            next_state.replace_reg <= MATCH_DATA;
-            next_state.replace_count <= (others => '0');
-        elsif state.step = REPLACE_DATA and state.replace_count = 64 then
-            next_state.step <= IDLE;
+        elsif state.step = COUNT_DATA or state.step = REPLACE_DATA then
+            if MATCH_VALID = '1' then
+                next_state.step <= REPLACE_DATA;
+                next_state.replace_reg <= MATCH_DATA;
+            else
+                next_state.step <= COUNT_DATA;
+            end if;
         elsif spi.clk = '1' and prev_spi.clk = '0' then
             new_shift_reg := state.shift_reg(22 downto 0) & spi.mosi;
             if state.step /= COUNT_DATA then
@@ -106,20 +107,19 @@ begin
                         next_state.addr_byte <= state.addr_byte + 1;
                         case state.addr_byte is
                             when "10" =>
+                                next_state.addr_reg <= state.shift_reg(23 downto 0);
                                 next_state.step <= COUNT_DATA;
                             when others =>
                                 null;
                         end case;
                     end if;
                     next_state.bit_count <= state.bit_count + 1;
-                when COUNT_DATA =>
+                when COUNT_DATA | REPLACE_DATA =>
                     if state.bit_count = 7 then
                         next_state.count <= state.count + 1;
                     end if;
                     next_state.bit_count <= state.bit_count + 1;
-                when REPLACE_DATA =>
-                    next_state.replace_count <= state.replace_count + 1;
-                    next_state.replace_reg <= state.replace_reg(62 downto 0) & '0';
+                    next_state.replace_reg <= state.replace_reg(6 downto 0) & '0';
                 when others =>
                     null;
             end case;
@@ -128,19 +128,15 @@ begin
 
     COMB_OUT: process(spi, prev_spi, state)
     begin
-        ADDR_OUT <= state.shift_reg(23 downto 0);
+        ADDR_OUT <= state.addr_reg;
         BYTE_COUNT <= std_logic_vector(state.count);
         STROBE <= '0';
         MOSI_EN <= '0';
-        SPI_MISO <= state.replace_reg(63);
-        if state.step = COUNT_DATA and prev_spi.cs_n = '0' and spi.cs_n = '1' and state.count > 0 then
+        SPI_MISO <= state.replace_reg(7);
+        if (state.step = COUNT_DATA or state.step = REPLACE_DATA) and prev_spi.cs_n = '0' and spi.cs_n = '1' and state.count > 0 then
             STROBE <= '1';
         elsif state.step = REPLACE_DATA then
             MOSI_EN <= '1';
-            if prev_spi.clk = '0' and spi.clk = '1' and state.replace_count = 0 then
-                BYTE_COUNT <= (others => '1');
-                STROBE <= '1';
-            end if;
         end if;
     end process;
 

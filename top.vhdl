@@ -81,7 +81,7 @@ architecture RTL of TOP is
     signal replace_clear  : std_logic;
 	signal replace_ix     : std_logic_vector(7 downto 0);
 
-    signal match_data   : std_logic_vector(63 downto 0);
+    signal match_data   : std_logic_vector(7 downto 0);
     signal match_valid  : std_logic;
     
     signal inj_armed      : std_logic;
@@ -125,6 +125,7 @@ begin
         REPLACE_CLEAR => replace_clear,
 		REPLACE_IX => replace_ix,
         MATCH_ADDR => spy_addr_out,
+        MATCH_OFFSET => spy_byte_count,
         MATCH_DATA => match_data,
         MATCH_VALID => match_valid,
         ARMED => inj_armed
