@@ -75,14 +75,19 @@ architecture RTL of TOP is
     signal st_source_valid: std_logic;
     signal st_source_ready: std_logic;
     
-    signal replace_addr   : std_logic_vector(23 downto 0);
-    signal replace_data   : std_logic_vector(63 downto 0);
-    signal replace_store  : std_logic;
-    signal replace_clear  : std_logic;
-	signal replace_ix     : std_logic_vector(7 downto 0);
+    signal prog_en        : std_logic;
+    signal prog_data      : std_logic_vector(7 downto 0);
+    signal prog_strobe    : std_logic;
 
-    signal match_data   : std_logic_vector(7 downto 0);
-    signal match_valid  : std_logic;
+    signal vflash_addr    : std_logic_vector(15 downto 0);
+    signal vflash_rden    : std_logic;
+    signal vflash_wren    : std_logic;
+    signal vflash_data_in : std_logic_vector(7 downto 0);
+    signal vflash_data_out: std_logic_vector(7 downto 0);
+    
+
+    signal match_data     : std_logic_vector(7 downto 0);
+    signal match_valid    : std_logic;
     
     signal inj_armed      : std_logic;
 
@@ -114,20 +119,38 @@ begin
         STSOURCEDATA  => st_source_data,
         STSOURCEREADY => st_source_ready
     );
+
+    vflash: entity work.VFLASH
+    port map (
+        address => vflash_addr,
+        clock => CLK,
+        data => vflash_data_out,
+        rden => vflash_rden,
+        wren => vflash_wren,
+        q => vflash_data_in
+    );
+
 	
     injector: entity work.INJECTOR
     port map (
         RESET_N => RESET_N,
         CLK => CLK,
-        REPLACE_ADDR => replace_addr,
-        REPLACE_DATA => replace_data,
-        REPLACE_STORE => replace_store,
-        REPLACE_CLEAR => replace_clear,
-		REPLACE_IX => replace_ix,
+        
+        PROG_EN => prog_en,
+        PROG_DATA => prog_data,
+        PROG_STROBE => prog_strobe,
+
+        MEM_ADDR => vflash_addr,
+        MEM_RDEN => vflash_rden,
+        MEM_WREN => vflash_wren,
+        MEM_DATA_OUT => vflash_data_out,
+        MEM_DATA_IN => vflash_data_in,
+        
         MATCH_ADDR => spy_addr_out,
         MATCH_OFFSET => spy_byte_count,
         MATCH_DATA => match_data,
         MATCH_VALID => match_valid,
+
         ARMED => inj_armed
     );
     
@@ -187,12 +210,12 @@ begin
         ST_SOURCE_DATA  => st_source_data,
         ST_SOURCE_VALID => st_source_valid,
         ST_SOURCE_READY => st_source_ready,
-        SPI_SS_N => COMM_SPI_SS_N,
-        REPLACE_ADDR => replace_addr,
-        REPLACE_DATA => replace_data,
-        REPLACE_STORE => replace_store,
-        REPLACE_CLEAR => replace_clear,
-		REPLACE_IX => replace_ix
+        SPI_SS_N => COMM_SPI_SS_N --,
+   --     REPLACE_ADDR => replace_addr,
+   --     REPLACE_DATA => replace_data,
+   --     REPLACE_STORE => replace_store,
+   --     REPLACE_CLEAR => replace_clear,
+   --	  REPLACE_IX => replace_ix
 	); 
 
     memory: entity work.MEMORY
