@@ -210,12 +210,10 @@ begin
         ST_SOURCE_DATA  => st_source_data,
         ST_SOURCE_VALID => st_source_valid,
         ST_SOURCE_READY => st_source_ready,
-        SPI_SS_N => COMM_SPI_SS_N --,
-   --     REPLACE_ADDR => replace_addr,
-   --     REPLACE_DATA => replace_data,
-   --     REPLACE_STORE => replace_store,
-   --     REPLACE_CLEAR => replace_clear,
-   --	  REPLACE_IX => replace_ix
+        SPI_SS_N => COMM_SPI_SS_N,
+        PROG_EN => prog_en,
+        PROG_DATA => prog_data,
+        PROG_STROBE => prog_strobe
 	); 
 
     memory: entity work.MEMORY
