@@ -146,6 +146,8 @@ begin
         PROG_DATA <= ST_SOURCE_DATA;
         PROG_STROBE <= '0';
         PROG_CLEAR <= '0';
+        ST_SINK_VALID <= '1';
+        ST_SINK_DATA  <= x"AB";
         ST_SINK_VALID <= '0';
         ST_SINK_DATA  <= x"FF";
 

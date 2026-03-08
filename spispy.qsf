@@ -123,6 +123,9 @@ set_instance_assignment -name SLEW_RATE 0 -to FLASH_SPI_SS_N
 set_instance_assignment -name CURRENT_STRENGTH_NEW 16MA -to FLASH_SPI_CLK
 set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to FLASH_SPI_MOSI
 set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to FLASH_SPI_SS_N
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name VHDL_SHOW_LMF_MAPPING_MESSAGES OFF
+set_global_assignment -name SOURCE_FILE vflash.cmp
 set_global_assignment -name VHDL_FILE arbiter.vhdl -hdl_version VHDL_2008
 set_global_assignment -name VHDL_FILE mux.vhdl
 set_global_assignment -name VHDL_FILE range_register.vhdl
@@ -140,6 +143,4 @@ set_global_assignment -name VHDL_FILE spispy.vhdl
 set_global_assignment -name QIP_FILE memory.qip
 set_global_assignment -name QIP_FILE pllclock.qip
 set_global_assignment -name QIP_FILE vflash.qip
-set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
-set_global_assignment -name VHDL_SHOW_LMF_MAPPING_MESSAGES OFF
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

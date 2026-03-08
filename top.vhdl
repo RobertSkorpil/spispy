@@ -122,7 +122,7 @@ begin
 
     vflash: entity work.VFLASH
     port map (
-        address => vflash_addr,
+        address => vflash_addr(13 downto 0),
         clock => CLK,
         data => vflash_data_out,
         rden => vflash_rden,
@@ -132,6 +132,9 @@ begin
 
 	
     injector: entity work.INJECTOR
+    generic map (
+        NUM_ENTRIES => 8
+    )
     port map (
         RESET_N => RESET_N,
         CLK => CLK,
@@ -249,7 +252,7 @@ begin
 		c0 => CLK2
 	);
     
-	LED_READY <= not inj_armed;--read_ready;
+	LED_READY <= read_ready;
 	LED_OVERFLOW <= not read_lost;
 	LED_MCU_ACT <= MCU_SPI_SS_N;
 	LED_COMM_ACT <= COMM_SPI_SS_N;
