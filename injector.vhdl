@@ -15,6 +15,7 @@ port (
     PROG_EN       : in std_logic;
     PROG_DATA     : in std_logic_vector(7 downto 0);
     PROG_STROBE   : in std_logic;
+    PROG_DUMP     : in std_logic;
 
     MATCH_ADDR    : in std_logic_vector(23 downto 0);
     MATCH_OFFSET  : in std_logic_vector(23 downto 0);
@@ -33,7 +34,7 @@ port (
 end entity;
 
 architecture RTL of INJECTOR is
-type state_t is (ST_PREINIT, ST_INIT, ST_PROGRAM, ST_READY);
+type state_t is (ST_PREINIT, ST_INIT, ST_PROGRAM, ST_READY, ST_DUMP_LEN1, ST_DUMP_LEN2, ST_DUMP_BUF);
 
 type shift_lines_t is array(0 to NUM_ENTRIES) of std_logic_vector(7 downto 0);
 
@@ -41,6 +42,7 @@ signal reset_regs_n : std_logic := '0';
 signal state_D, state_Q : state_t := ST_PREINIT;
 signal prog_address_D, prog_address_Q, prog_address_QQ: std_logic_vector(15 downto 0) := (others => '0');
 signal arbiter_match_D, arbiter_match_Q: std_logic := '0';
+signal buf_size_D, buf_size_Q: std_logic_vector(15 downto 0) := (others => '0');
 
 signal effective_addr: unsigned(23 downto 0);
 signal reg_match: std_logic_vector(NUM_ENTRIES-1 downto 0);
@@ -92,6 +94,7 @@ begin
     begin
         state_D <= state_Q;
         prog_address_D <= prog_address_Q;
+				buf_size_D <= buf_size_Q;
 
         case state_Q is
             when ST_READY =>
@@ -99,10 +102,36 @@ begin
                     state_D <= ST_PROGRAM;
                     prog_address_D <= (others => '0');
                 end if;
+								if PROG_DUMP = '1' then
+									  state_D <= ST_DUMP_LEN1;
+								end if;
+						when ST_DUMP_LEN1 =>
+								prog_address_D <= (others => '0');
+								if PROG_DUMP = '0' then
+							      state_D <= ST_READY;
+								end if;
+                if PROG_STROBE = '1' then
+									state_D <= ST_DUMP_LEN2;
+							  end if;
+						when ST_DUMP_LEN2 =>
+								if PROG_DUMP = '0' then
+									  state_D <= ST_READY;
+								end if;
+                if PROG_STROBE = '1' then
+									state_D <= ST_DUMP_BUF;
+							  end if;
+						when ST_DUMP_BUF =>
+							  if PROG_DUMP = '0' then
+									  state_D <= ST_READY;
+								end if;
+                if PROG_STROBE = '1' then
+                    prog_address_D <= std_logic_vector(unsigned(prog_address_Q) + 1);
+							  end if;
             when ST_PROGRAM =>
                 if PROG_EN = '0' then
                     state_D <= ST_PREINIT;
                     prog_address_D <= (others => '0');
+									  buf_size_D <= prog_address_Q;
                 elsif PROG_STROBE = '1' then
                     prog_address_D <= std_logic_vector(unsigned(prog_address_Q) + 1);
                 end if;
@@ -152,6 +181,15 @@ begin
                 MEM_ADDR <= selected_addr_out;
                 MEM_RDEN <= '1';
                 MATCH_VALID <= arbiter_match_Q;
+						when ST_DUMP_LEN1 =>
+							  MATCH_DATA <= buf_size_Q(15 downto 8);
+						when ST_DUMP_LEN2 =>
+							  MATCH_DATA <= buf_size_Q(7 downto 0);
+                MEM_ADDR <= prog_address_Q;
+								MEM_RDEN <= '1';
+						when ST_DUMP_BUF =>
+							  MEM_ADDR <= prog_address_Q;
+								MEM_RDEN <= '1';
             when ST_PROGRAM =>
                 MEM_ADDR <= prog_address_Q;
                 MEM_WREN <= PROG_STROBE;
@@ -183,11 +221,13 @@ begin
                 prog_address_Q <= (others => '0');
                 prog_address_QQ <= (others => '1');
                 arbiter_match_Q <= '0';
+								buf_size_Q <= (others => '0');
             else
                 state_Q <= state_D;
                 prog_address_Q <= prog_address_D;
                 prog_address_QQ <= prog_address_Q;
                 arbiter_match_Q <= arbiter_match_D;
+								buf_size_Q <= buf_size_D;
             end if;
         end if;
     end process;

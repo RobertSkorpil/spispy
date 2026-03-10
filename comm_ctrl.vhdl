@@ -35,7 +35,9 @@ entity COMM_CTRL is
         PROG_EN     : out std_logic;    
         PROG_DATA   : out std_logic_vector(7 downto 0);
         PROG_STROBE : out std_logic;
-        PROG_CLEAR  : out std_logic
+        PROG_DUMP   : out std_logic;
+
+				DUMP_DATA   : in std_logic_vector(7 downto 0)
     );
 end entity COMM_CTRL;
 
@@ -43,7 +45,7 @@ architecture RTL of COMM_CTRL is
 
     constant ALL_FF : std_logic_vector(63 downto 0) := (others => '1');
 
-    type state_t is (S_IDLE, S_CMD, S_LATCH, S_PROG, S_CLEAR, S_CLEAR_BUF, S_SEND, S_INVALID);
+    type state_t is (S_IDLE, S_CMD, S_LATCH, S_PROG, S_DUMP, S_CLEAR_BUF, S_SEND, S_INVALID);
 
     -- Current state registers
     signal state      : state_t := S_IDLE;
@@ -94,7 +96,7 @@ begin
                             when b"10" =>
                                 state_next <= S_PROG;
                             when b"11" =>
-                                state_next <= S_CLEAR;
+                                state_next <= S_DUMP;
                             when others =>
                                 state_next <= S_INVALID;
                         end case;
@@ -103,10 +105,8 @@ begin
                     if ST_SOURCE_VALID = '1' then
                         byte_cnt_next <= byte_cnt + 1;
                     end if;
-                when S_CLEAR =>
-                    if ST_SOURCE_VALID = '1' then
-                        state_next <= S_INVALID;
-                    end if;                    
+								when S_DUMP =>
+									  null;
                 when S_CLEAR_BUF =>
                     if ST_SOURCE_VALID = '1' then
                         state_next <= S_INVALID;
@@ -145,12 +145,11 @@ begin
         PROG_EN <= '0';
         PROG_DATA <= ST_SOURCE_DATA;
         PROG_STROBE <= '0';
-        PROG_CLEAR <= '0';
+				PROG_DUMP <= '0';
         ST_SINK_VALID <= '1';
         ST_SINK_DATA  <= x"AB";
         ST_SINK_VALID <= '0';
         ST_SINK_DATA  <= x"FF";
-
 
         case state is
             when S_INVALID =>
@@ -170,9 +169,10 @@ begin
                 ST_SINK_DATA <= b"0000" & std_logic_vector(byte_cnt);
                 ST_SINK_VALID <= '1';
 
-            when S_CLEAR =>
-                PROG_CLEAR <= '1';
-                ST_SINK_DATA <= x"AC";               
+            when S_DUMP =>
+                PROG_DUMP <= '1';
+								PROG_STROBE <= ST_SINK_READY;
+                ST_SINK_DATA <= DUMP_DATA;
                 ST_SINK_VALID <= '1';
 
             when S_CLEAR_BUF =>

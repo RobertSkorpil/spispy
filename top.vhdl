@@ -78,6 +78,7 @@ architecture RTL of TOP is
     signal prog_en        : std_logic;
     signal prog_data      : std_logic_vector(7 downto 0);
     signal prog_strobe    : std_logic;
+		signal prog_dump      : std_logic;
 
     signal vflash_addr    : std_logic_vector(15 downto 0);
     signal vflash_rden    : std_logic;
@@ -142,6 +143,7 @@ begin
         PROG_EN => prog_en,
         PROG_DATA => prog_data,
         PROG_STROBE => prog_strobe,
+				PROG_DUMP => prog_dump,
 
         MEM_ADDR => vflash_addr,
         MEM_RDEN => vflash_rden,
@@ -216,7 +218,9 @@ begin
         SPI_SS_N => COMM_SPI_SS_N,
         PROG_EN => prog_en,
         PROG_DATA => prog_data,
-        PROG_STROBE => prog_strobe
+        PROG_STROBE => prog_strobe,
+				PROG_DUMP => prog_dump,
+				DUMP_DATA => match_data
 	); 
 
     memory: entity work.MEMORY
