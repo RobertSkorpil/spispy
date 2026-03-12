@@ -284,6 +284,7 @@ begin
     end process;
 
     process(all)
+    begin
         if miso_inject = '1' then
             flash_master_miso <= miso_inj_data;
         else
