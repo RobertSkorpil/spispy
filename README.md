@@ -166,25 +166,25 @@ When this command is detected, the system:
 
 ## Patch Format
 
-Injection patterns are stored in VFLASH memory and loaded at initialization. The format consists of a sequence of **patch entries**, each defining an address range and replacement data.
+Injection patterns are programmed via the PROG command, which streams a complete patch buffer into the device's VFLASH memory. The buffer consists of a sequence of **patch entries** (headers) followed by all replacement data.
 
 ### Entry Structure
 
-Each patch entry is 8 bytes, followed by variable-length replacement data:
+Each patch entry header is 8 bytes:
 
 ```
 Byte 0:    [S|---reserved (7 bits)---]
 Bytes 1-3: Address[23:0]        (big-endian, 24-bit start address)
 Bytes 4-5: Length[15:0]         (big-endian, number of bytes to match)
-Bytes 6-7: Data_Address[15:0]   (big-endian, pointer to replacement data in VFLASH)
+Bytes 6-7: Data_Offset[15:0]    (big-endian, offset to replacement data in buffer)
 ```
 
 - **S (bit 7 of byte 0):** Armed flag
   - `1` = Entry is active
-  - `0` = Entry is inactive/uninitialized
+  - `0` = Entry is inactive/marks end of table
 - **Address:** Starting address in the SPI address space to match
 - **Length:** Number of bytes in the address range
-- **Data_Address:** Pointer into VFLASH memory where replacement data is stored
+- **Data_Offset:** Byte offset within the PROG buffer where replacement data begins
 
 ### Matching Logic
 
@@ -199,42 +199,84 @@ An entry matches if:
 ```
 
 When a match occurs:
-- Replacement data is fetched from `data_address + (effective_addr - entry_addr)`
+- Replacement data is fetched from `data_offset + (effective_addr - entry_addr)`
 - The fetched byte replaces the normal MISO data
 - `MATCH_VALID` asserts and `MATCH_DATA` provides the injection byte
 
-### Example Patch Entry
+### Example Patch Buffer
 
-From `bear.dump` (line 1):
+To inject 4 bytes at SPI address `0x0000F0` and 2 bytes at `0x000200`:
+
 ```
-8 0 0 f0 0 0 4 d1 26
+Complete PROG buffer:
+
+Offset 0x0000: Entry 1 Header (8 bytes)
+  0x80 0x00 0x00 0xF0 0x00 0x04 0x00 0x18
+
+Offset 0x0008: Entry 2 Header (8 bytes)
+  0x80 0x00 0x02 0x00 0x00 0x02 0x00 0x1C
+
+Offset 0x0010: Header Terminator (1 byte minimum)
+  0x00
+
+Offset 0x0011: Padding to align data (7 bytes, optional but shown for clarity)
+  0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+Offset 0x0018: Entry 1 Replacement Data (4 bytes)
+  0xAA 0xBB 0xCC 0xDD
+
+Offset 0x001C: Entry 2 Replacement Data (2 bytes)
+  0x11 0x22
 ```
 
-Decoded as:
-- **Byte 0:** `0x80` → Armed (S=1), reserved=0
-- **Address:** `0x0000F0` (bytes 1-3)
-- **Length:** `0x0004` (bytes 4-5) → 4 bytes
-- **Data_Address:** `0xD126` (bytes 6-7)
-- **Replacement data byte:** `0x26`
+**Decoded Entry 1:**
+- Armed (0x80, S=1)
+- Start address: 0x0000F0
+- Length: 4 bytes
+- Data at buffer offset 0x0018: `[0xAA, 0xBB, 0xCC, 0xDD]`
 
-This entry will inject data from VFLASH location `0xD126+` when the SPI transaction reads from addresses `0x0000F0` through `0x0000F3`.
+**Decoded Entry 2:**
+- Armed (0x80, S=1)
+- Start address: 0x000200
+- Length: 2 bytes
+- Data at buffer offset 0x001C: `[0x11, 0x22]`
 
-### Memory Layout
+**Terminator:**
+- Single `0x00` byte (S=0) signals end of headers
+- Remaining buffer bytes are interpreted as replacement data
 
-The VFLASH memory contains:
-1. **Patch Table:** Sequential 8-byte entries starting at address 0
-2. **Replacement Data:** Variable-length data buffers referenced by `Data_Address` fields
-3. **Terminator:** First entry with S=0 marks end of table
+When the monitored SPI reads from `0x0000F0-0x0000F3`, bytes `0xAA-0xDD` are injected. When it reads from `0x000200-0x000201`, bytes `0x11, 0x22` are injected.
 
-Up to 8 active entries can be matched simultaneously (configurable via `NUM_ENTRIES` generic).
+### Buffer Layout
+
+The complete PROG buffer structure:
+1. **Active Patch Headers:** Sequential 8-byte entries (up to NUM_ENTRIES active, each with S=1)
+2. **Header Terminator:** Single byte with S=0 (can be just `0x00`)
+3. **Replacement Data:** All replacement data blocks referenced by Data_Offset fields
+
+**Key Points:**
+- The terminator distinguishes between headers and data
+- Minimum terminator is 1 byte (`0x00`), but can include padding
+- Data_Offset values must point past the terminator section
+- Up to 8 active entries can be matched simultaneously (configurable via `NUM_ENTRIES` generic)
+- All data is written to VFLASH on-chip memory during PROG command
 
 ### Programming Flow
 
-1. Assert CS# on COMM_SPI
-2. Send PROG command (e.g., `0x02`)
-3. Stream all patch data (entries + replacement data)
-4. De-assert CS#
-5. System automatically re-initializes and loads new patterns
+1. Assert CS# on COMM_SPI (low)
+2. Send PROG command byte (e.g., `0x02`)
+3. Stream patch buffer in order:
+   - All active patch headers (8 bytes each, S=1)
+   - Terminator byte (`0x00`, S=0)
+   - All replacement data blocks
+4. De-assert CS# (high)
+5. System automatically re-initializes, parses headers (stopping at S=0), and arms matching entries
+
+**Important:** 
+- Headers MUST come first, followed by the terminator, then all data
+- The terminator can be as short as a single `0x00` byte
+- Data_Offset values reference positions within the entire transmitted buffer
+- The system reads headers sequentially until it encounters a byte with S=0
 
 ## Use Cases
 
