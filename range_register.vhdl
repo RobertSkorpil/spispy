@@ -16,7 +16,7 @@ port (
 
     SHIFT_EN      : in std_logic;
     SHIFT_IN      : in std_logic_vector(7 downto 0);
-    SHIFT_OUT     : out std_logic_vector(7 downto 0) --;
+    SHIFT_OUT     : out std_logic_vector(7 downto 0)
 );
 end entity;
 
@@ -64,8 +64,8 @@ begin
     SYNC: process(CLK)
     begin
         if rising_edge(CLK) then
-            addr_in_Q <= ADDR_IN;
             if RESET_N = '0' then
+                addr_in_Q <= (others => '0');
                 stored_Q <= '0';
                 reserved_Q <= (others => '0');
                 addr_Q <= (others => '0');
@@ -74,6 +74,7 @@ begin
                 addr_match_Q <= '0';
                 addr_out_Q <= (others => '0');
             else
+                addr_in_Q <= ADDR_IN;
                 stored_Q <= stored_D;
                 reserved_Q <= reserved_D;
                 addr_Q <= addr_D;
