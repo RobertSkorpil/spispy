@@ -54,10 +54,10 @@ The system consists of several key components:
 ### Communication Interface
 - Dedicated SPI slave interface (`COMM_SPI`) for external control
 - Four command types:
-  - **LATCH:** Read buffered transaction metadata (address, count, timestamp)
-  - **PROG:** Program injection patterns into VFLASH memory
-  - **DUMP:** Read back programmed pattern memory
-  - **CLEAR_BUF:** Clear the capture buffer
+  - **RETRIEVE:** Read buffered transaction metadata (address, count, timestamp)
+  - **PROGRAM:** Program injection patterns into VFLASH memory
+  - **INSPECT:** Read back programmed pattern memory
+  - **CLEAR:** Clear the capture buffer
 - Internal Avalon-ST streaming interface for data transfer
 - Simple command-response protocol (see Communication SPI Protocol section)
 
@@ -84,19 +84,19 @@ The system consists of several key components:
 
 ## Building the Project
 
-The project includes a Makefile for building with Intel Quartus:
-
-```bash
-make
-```
-
-This will synthesize the design and generate programming files.
+This project is designed for Intel/Altera FPGAs and uses Quartus Prime for synthesis and implementation.
 
 ### Requirements
 
 - Intel Quartus Prime (for Altera/Intel FPGAs)
 - VHDL-2008 compatible simulator for verification
 - Platform-specific IP cores (PLL, memory, SPI slave)
+
+### Quartus Project Files
+
+- `spispy.qpf` - Quartus project file
+- `spispy.qsf` - Quartus settings file
+- `spispy.out.sdc` - Timing constraints
 
 ## Communication SPI Protocol
 
@@ -108,19 +108,19 @@ All transactions begin with a command byte (MOSI), where bits [1:0] determine th
 
 | Command | Bits[1:0] | Operation | Response |
 |---------|-----------|-----------|----------|
-| **CLEAR_BUF** | `00` | Clear the capture buffer | `0xAB` confirmation |
-| **LATCH** | `01` | Read next captured transaction | 8 bytes of data |
-| **PROG** | `10` | Program injection patterns | Byte counter |
-| **DUMP** | `11` | Dump injection pattern memory | Pattern data stream |
+| **CLEAR** | `00` | Clear the capture buffer | `0xAB` confirmation |
+| **RETRIEVE** | `01` | Read next captured transaction | 8 bytes of data |
+| **PROGRAM** | `10` | Program injection patterns | Byte counter |
+| **INSPECT** | `11` | Inspect injection pattern memory | Pattern data stream |
 
 ### Command Details
 
-#### CLEAR_BUF (0x00, 0x04, 0x08, ...)
+#### CLEAR (0x00)
 - Clears the circular buffer of captured transactions
 - Response: Single byte `0xAB` confirmation
 - No additional data required
 
-#### LATCH (0x01, 0x05, 0x09, ...)
+#### RETRIEVE (0x01)
 - Retrieves the next captured SPI transaction from the buffer
 - Response: 8 bytes containing transaction metadata
   - Bytes 0-2: 24-bit address (`READ_ADDR`)
@@ -129,14 +129,14 @@ All transactions begin with a command byte (MOSI), where bits [1:0] determine th
 - If no data is ready, returns `0xFF` for all bytes
 - Automatically advances to next buffer entry
 
-#### PROG (0x02, 0x06, 0x0A, ...)
+#### PROGRAM (0x02)
 - Programs injection patterns into the VFLASH memory
 - Response: Echo of byte counter (increments with each byte received)
 - Send continuous stream of pattern data bytes via MOSI
 - Transaction ends when CS# is de-asserted
 - See "Patch Format" section below for data structure
 
-#### DUMP (0x03, 0x07, 0x0B, ...)
+#### INSPECT (0x03)
 - Reads back the programmed injection pattern memory
 - Response stream:
   - Byte 0: Buffer size MSB
@@ -166,7 +166,7 @@ When this command is detected, the system:
 
 ## Patch Format
 
-Injection patterns are programmed via the PROG command, which streams a complete patch buffer into the device's VFLASH memory. The buffer consists of a sequence of **patch entries** (headers) followed by all replacement data.
+Injection patterns are programmed via the PROGRAM command, which streams a complete patch buffer into the device's VFLASH memory. The buffer consists of a sequence of **patch entries** (headers) followed by all replacement data.
 
 ### Entry Structure
 
@@ -208,7 +208,7 @@ When a match occurs:
 To inject 4 bytes at SPI address `0x0000F0` and 2 bytes at `0x000200`:
 
 ```
-Complete PROG buffer:
+Complete PROGRAM buffer:
 
 Offset 0x0000: Entry 1 Header (8 bytes)
   0x80 0x00 0x00 0xF0 0x00 0x04 0x00 0x18
@@ -249,7 +249,7 @@ When the monitored SPI reads from `0x0000F0-0x0000F3`, bytes `0xAA-0xDD` are inj
 
 ### Buffer Layout
 
-The complete PROG buffer structure:
+The complete PROGRAM buffer structure:
 1. **Active Patch Headers:** Sequential 8-byte entries (up to NUM_ENTRIES active, each with S=1)
 2. **Header Terminator:** Single byte with S=0 (can be just `0x00`)
 3. **Replacement Data:** All replacement data blocks referenced by Data_Offset fields
@@ -259,12 +259,12 @@ The complete PROG buffer structure:
 - Minimum terminator is 1 byte (`0x00`), but can include padding
 - Data_Offset values must point past the terminator section
 - Up to 8 active entries can be matched simultaneously (configurable via `NUM_ENTRIES` generic)
-- All data is written to VFLASH on-chip memory during PROG command
+- All data is written to VFLASH on-chip memory during PROGRAM command
 
 ### Programming Flow
 
 1. Assert CS# on COMM_SPI (low)
-2. Send PROG command byte (e.g., `0x02`)
+2. Send PROGRAM command byte (e.g., `0x02`)
 3. Stream patch buffer in order:
    - All active patch headers (8 bytes each, S=1)
    - Terminator byte (`0x00`, S=0)
