@@ -43,114 +43,108 @@ architecture RTL of SPISPY is
     end record;
 
     constant RESET_STATE : state_t := (step => IDLE, shift_reg => (others => '0'), addr_reg => (others => '0'), count => (others => '0'), bit_count => (others => '0'), addr_byte => (others => '0'), replace_reg => (others => '0'));
-    constant RESET_SPI_FF : spi_t := (clk => '0', cs_n => '1', mosi => '0');
+    constant RESET_spi_FF : spi_t := (clk => '0', cs_n => '1', mosi => '0');
 
-    signal state : state_t := RESET_STATE;
-    signal next_state : state_t := RESET_STATE;
-    signal sync_spi_ff1 : spi_t := RESET_SPI_FF;
-    signal sync_spi_ff2 : spi_t := RESET_SPI_FF;
-    signal prev_spi : spi_t := RESET_SPI_FF;
-    signal spi : spi_t := RESET_SPI_FF;
+    signal state_Q, state_D : state_t := RESET_STATE;
+    signal spi_FF1, spi_FF2, spi_Q, spi_QQ : spi_t := RESET_spi_FF;
 begin
     SYNC_SPI: process(CLK)
     begin        
         if RESET_N = '0' then
-             sync_spi_ff1 <= RESET_SPI_FF;
-             sync_spi_ff2 <= RESET_SPI_FF;
-             prev_spi <= RESET_SPI_FF;
-             spi <= RESET_SPI_FF;
+             spi_FF1 <= RESET_spi_FF;
+             spi_FF2 <= RESET_spi_FF;
+             spi_QQ <= RESET_spi_FF;
+             spi_Q  <= RESET_spi_FF;
         elsif rising_edge(CLK) then
-             sync_spi_ff1.clk <= SPI_CLK;
-             sync_spi_ff1.cs_n <= SPI_CS_N;
-             sync_spi_ff1.mosi <= SPI_MOSI;
-             sync_spi_ff2 <= sync_spi_ff1;
-             spi <= sync_spi_ff2;
-             prev_spi <= spi;
+             spi_FF1 <= (clk => SPI_CLK, cs_n => SPI_CS_N, mosi => SPI_MOSI);
+             spi_FF2 <= spi_FF1;
+             spi_Q <= spi_FF2;
+             spi_QQ <= spi_Q;
         end if;        
     end process;
 
-    COMB_NEXT: process(spi, prev_spi, state)
+    COMB_NEXT: process(spi_Q, spi_QQ, state_Q)
     variable new_shift_reg : std_logic_vector(23 downto 0);
     begin
-        next_state <= state;
-        if prev_spi.cs_n = '1' and spi.cs_n = '0' then   
-            next_state.count <= (others => '0');
-            next_state.step <= GET_CMD;
-            next_state.bit_count <= (others => '0');
-        elsif prev_spi.cs_n = '0' and spi.cs_n = '1' then
-            next_state.step <= IDLE;
+        state_D <= state_Q;
+        if spi_QQ.cs_n = '1' and spi_Q.cs_n = '0' then   
+            state_D.count <= (others => '0');
+            state_D.step <= GET_CMD;
+            state_D.bit_count <= (others => '0');
+        elsif spi_QQ.cs_n = '0' and spi_Q.cs_n = '1' then
+            state_D.step <= IDLE;
         else
-            if spi.clk = '1' and prev_spi.clk = '0' then
-                new_shift_reg := state.shift_reg(22 downto 0) & spi.mosi;
-                if state.step /= COUNT_DATA then
-                    next_state.shift_reg <= new_shift_reg;
+            if spi_Q.clk = '1' and spi_QQ.clk = '0' then
+                new_shift_reg := state_Q.shift_reg(22 downto 0) & spi_Q.mosi;
+                if state_Q.step /= COUNT_DATA then
+                    state_D.shift_reg <= new_shift_reg;
                 end if;
-                case state.step is
+                case state_Q.step is
                     when GET_CMD =>
-                        if state.bit_count = 7 then
+                        if state_Q.bit_count = 7 then
                            if new_shift_reg(7 downto 0) = CMD_READ then
-                                next_state.step <= GET_ADDR;
-                                next_state.addr_byte <= "00";
+                                state_D.step <= GET_ADDR;
+                                state_D.addr_byte <= "00";
                             else
-                                next_state.step <= IDLE;
+                                state_D.step <= IDLE;
                             end if;
                         end if;
-                        next_state.bit_count <= state.bit_count + 1;
+                        state_D.bit_count <= state_Q.bit_count + 1;
                     when GET_ADDR =>
-                        if state.bit_count = 7 then
-                            next_state.addr_byte <= state.addr_byte + 1;
-                            case state.addr_byte is
+                        if state_Q.bit_count = 7 then
+                            state_D.addr_byte <= state_Q.addr_byte + 1;
+                            case state_Q.addr_byte is
                                 when "10" =>
-                                    next_state.addr_reg <= new_shift_reg;
-                                    next_state.step <= COUNT_DATA;
+                                    state_D.addr_reg <= new_shift_reg;
+                                    state_D.step <= COUNT_DATA;
                                 when others =>
                                     null;
                             end case;
                         end if;
-                        next_state.bit_count <= state.bit_count + 1;
+                        state_D.bit_count <= state_Q.bit_count + 1;
                     when COUNT_DATA | REPLACE_DATA =>
-                        if state.bit_count = 7 then
-                            next_state.count <= state.count + 1;
+                        if state_Q.bit_count = 7 then
+                            state_D.count <= state_Q.count + 1;
                         end if;
-                        next_state.bit_count <= state.bit_count + 1;
-                        next_state.replace_reg <= state.replace_reg(6 downto 0) & '0';
+                        state_D.bit_count <= state_Q.bit_count + 1;
+                        state_D.replace_reg <= state_Q.replace_reg(6 downto 0) & '0';
                     when others =>
                         null;
                 end case;
-            elsif state.step = COUNT_DATA or state.step = REPLACE_DATA then
+            elsif state_Q.step = COUNT_DATA or state_Q.step = REPLACE_DATA then
                 if MATCH_VALID = '1' then
-                    next_state.step <= REPLACE_DATA;
-                    if state.bit_count = 0 then
-                        next_state.replace_reg <= MATCH_DATA;
+                    state_D.step <= REPLACE_DATA;
+                    if state_Q.bit_count = 0 then
+                        state_D.replace_reg <= MATCH_DATA;
                     end if;
                 else
-                    next_state.step <= COUNT_DATA;
+                    state_D.step <= COUNT_DATA;
                 end if;
             end if;
         end if;
     end process;
 
-    COMB_OUT: process(spi, prev_spi, state)
+    COMB_OUT: process(spi_Q, spi_QQ, state_Q)
     begin
-        ADDR_OUT <= state.addr_reg;
-        BYTE_COUNT <= std_logic_vector(state.count);
+        ADDR_OUT <= state_Q.addr_reg;
+        BYTE_COUNT <= std_logic_vector(state_Q.count);
         STROBE <= '0';
         MOSI_EN <= '0';
-        SPI_MISO <= state.replace_reg(7);
-        if (state.step = COUNT_DATA or state.step = REPLACE_DATA) and prev_spi.cs_n = '0' and spi.cs_n = '1' and state.count > 0 then
+        SPI_MISO <= state_Q.replace_reg(7);
+        if (state_Q.step = COUNT_DATA or state_Q.step = REPLACE_DATA) and spi_QQ.cs_n = '0' and spi_Q.cs_n = '1' and state_Q.count > 0 then
             STROBE <= '1';
         end if;
-        if state.step = REPLACE_DATA then
+        if state_Q.step = REPLACE_DATA then
             MOSI_EN <= '1';
         end if;
     end process;
 
     SYNC_REG: process(CLK,RESET_N)
     begin
-		if RESET_N = '0' then
-			 state <= RESET_STATE;
-       elsif rising_edge(CLK) then
-			 state <= next_state;
+        if RESET_N = '0' then
+            state_Q <= RESET_STATE;
+        elsif rising_edge(CLK) then
+            state_Q <= state_D;
         end if;
     end process;
 

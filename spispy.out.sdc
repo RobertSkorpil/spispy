@@ -46,7 +46,7 @@ create_clock -name {CLK} -period 20.000 -waveform { 0.000 10.000 } [get_ports { 
 # Create Generated Clock
 #**************************************************************
 
-create_generated_clock -name {pllclock:clock2|altpll:altpll_component|pllclock_altpll:auto_generated|wire_pll1_clk[0]} -source [get_pins {clock2|altpll_component|auto_generated|pll1|inclk[0]}] -duty_cycle 50/1 -multiply_by 4 -master_clock {CLK} [get_pins {clock2|altpll_component|auto_generated|pll1|clk[0]}] 
+create_generated_clock -name {CLK2} -source [get_pins {clock2|altpll_component|auto_generated|pll1|inclk[0]}] -duty_cycle 50/1 -multiply_by 5 -master_clock {CLK} [get_pins {clock2|altpll_component|auto_generated|pll1|clk[0]}] 
 
 
 #**************************************************************
