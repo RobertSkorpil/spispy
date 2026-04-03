@@ -139,7 +139,8 @@ begin
         SPI_MISO <= state.replace_reg(7);
         if (state.step = COUNT_DATA or state.step = REPLACE_DATA) and prev_spi.cs_n = '0' and spi.cs_n = '1' and state.count > 0 then
             STROBE <= '1';
-        elsif state.step = REPLACE_DATA then
+        end if;
+        if state.step = REPLACE_DATA then
             MOSI_EN <= '1';
         end if;
     end process;
